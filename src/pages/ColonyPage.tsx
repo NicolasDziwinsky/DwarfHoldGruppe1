@@ -11,6 +11,7 @@ export function ColonyPage() {
     activities,
     expeditionPending,
     assignDwarf,
+    toggleTool,
     sendExpedition,
   } = useColony();
   const [destination, setDestination] = useState("crystal-cave");
@@ -39,7 +40,9 @@ export function ColonyPage() {
       <DwarfRoster
         dwarves={colony.dwarves}
         hungry={colony.hungry}
+        toolsAvailable={colony.resources.tools}
         onAssign={assignDwarf}
+        onToggleTool={toggleTool}
       />
 
       <section className="center-stack">

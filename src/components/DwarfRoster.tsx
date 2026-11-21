@@ -10,10 +10,18 @@ const jobs: Exclude<JobType, null>[] = [
 interface Props {
   dwarves: Dwarf[];
   hungry: boolean;
+  toolsAvailable: number;
   onAssign: (id: string, job: JobType) => void;
+  onToggleTool: (id: string) => void;
 }
 
-export function DwarfRoster({ dwarves, hungry, onAssign }: Props) {
+export function DwarfRoster({
+  dwarves,
+  hungry,
+  toolsAvailable,
+  onAssign,
+  onToggleTool,
+}: Props) {
   const presentDwarves = dwarves.filter(
     (dwarf) => dwarf.status !== "expedition",
   ).length;
@@ -70,6 +78,21 @@ export function DwarfRoster({ dwarves, hungry, onAssign }: Props) {
                     </option>
                   ))}
                 </select>
+
+                <button
+                  type="button"
+                  className={
+                    dwarf.toolEquipped ? "tool-toggle equipped" : "tool-toggle"
+                  }
+                  disabled={!dwarf.toolEquipped && toolsAvailable < 1}
+                  onClick={() => onToggleTool(dwarf.id)}
+                >
+                  {dwarf.toolEquipped
+                    ? "⚒️ Unequip tool"
+                    : toolsAvailable > 0
+                      ? "⚒️ Equip tool"
+                      : "No tools in stores"}
+                </button>
               </div>
 
               <div className="status-tags">

@@ -142,6 +142,48 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  function toggleTool(id: string) {
+    const dwarf = colony.dwarves.find((item) => item.id === id);
+    if (!dwarf) return;
+
+    const equipping = !dwarf.toolEquipped;
+    if (equipping && colony.resources.tools < 1) return;
+
+    setColony((current) => {
+      const target = current.dwarves.find((item) => item.id === id);
+      if (!target) return current;
+
+      // Re-check against the latest state so tools can never go negative
+      // or be returned twice.
+      if (equipping === Boolean(target.toolEquipped)) return current;
+      if (equipping && current.resources.tools < 1) return current;
+
+      return {
+        ...current,
+        resources: {
+          ...current.resources,
+          tools: current.resources.tools + (equipping ? -1 : 1),
+        },
+        dwarves: current.dwarves.map((item) =>
+          item.id === id ? { ...item, toolEquipped: equipping } : item,
+        ),
+      };
+    });
+
+    setActivities((current) =>
+      [
+        {
+          id: crypto.randomUUID(),
+          day: colony.day,
+          message: equipping
+            ? `${dwarf.name} takes up a tool from the stores.`
+            : `${dwarf.name} returns a tool to the stores.`,
+        },
+        ...current,
+      ].slice(0, 6),
+    );
+  }
+
   async function sendExpedition(dwarfId: string, destination: string) {
     const dwarf = colony.dwarves.find((item) => item.id === dwarfId);
     if (!dwarf) return;
@@ -222,6 +264,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     togglePaused: () => setPaused((value) => !value),
     assignDwarf,
     craftTool,
+    toggleTool,
     sendExpedition,
   };
 
