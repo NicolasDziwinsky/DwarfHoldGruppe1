@@ -44,7 +44,16 @@ const initialState: ColonyState = {
       assignment: null,
       status: "idle",
     },
+    {
+      id: "dwarf-4",
+      name: "SKELETON",
+      title: "GRRRRR",
+      icon: "💀",
+      assignment: null,
+      status: "idle",
+    },
   ],
+  hungry: false,
 };
 
 export function ColonyProvider({ children }: { children: ReactNode }) {
@@ -64,7 +73,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
 
     const timer = window.setInterval(
       () => setColony((current) => advanceDay(current)),
-      8_000,
+      1000,
     );
 
     return () => window.clearInterval(timer);

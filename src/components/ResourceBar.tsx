@@ -7,14 +7,22 @@ const details = {
   tools: ["⚒️", "Tools"],
 } as const;
 
-export function ResourceBar({ resources }: { resources: Resources }) {
+interface Props {
+  resources: Resources;
+  hungry: boolean;
+}
+
+export function ResourceBar({ resources, hungry }: Props) {
   return (
     <section className="resource-bar">
       {Object.entries(resources).map(([key, value]) => {
         const [icon, label] = details[key as keyof Resources];
 
         return (
-          <article key={key}>
+          <article
+            key={key}
+            className={key === "food" && hungry ? "hungry" : undefined}
+          >
             <span>{icon}</span>
             <div>
               <small>{label}</small>

@@ -40,7 +40,7 @@ export function Layout() {
         <NavLink to="/forge">Forge</NavLink>
       </nav>
 
-      <ResourceBar resources={colony.resources} />
+      <ResourceBar resources={colony.resources} hungry={colony.hungry} />
       <Outlet />
 
       <footer>

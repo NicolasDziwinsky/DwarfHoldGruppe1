@@ -9,10 +9,11 @@ const jobs: Exclude<JobType, null>[] = [
 
 interface Props {
   dwarves: Dwarf[];
+  hungry: boolean;
   onAssign: (id: string, job: JobType) => void;
 }
 
-export function DwarfRoster({ dwarves, onAssign }: Props) {
+export function DwarfRoster({ dwarves, hungry, onAssign }: Props) {
   const presentDwarves = dwarves.filter(
     (dwarf) => dwarf.status !== "expedition",
   ).length;
@@ -71,7 +72,17 @@ export function DwarfRoster({ dwarves, onAssign }: Props) {
                 </select>
               </div>
 
-              <span className="status">{dwarf.status}</span>
+              <div className="status-tags">
+                <span className="status">{dwarf.status}</span>
+                {hungry && !isAway && (
+                  <span
+                    className="status hungry"
+                    title="Hungry dwarves work at half strength (rounded down)"
+                  >
+                    🍖 Hungry · 50% output
+                  </span>
+                )}
+              </div>
             </article>
           );
         })}

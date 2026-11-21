@@ -36,7 +36,11 @@ export function ColonyPage() {
 
   return (
     <div className="dashboard">
-      <DwarfRoster dwarves={colony.dwarves} onAssign={assignDwarf} />
+      <DwarfRoster
+        dwarves={colony.dwarves}
+        hungry={colony.hungry}
+        onAssign={assignDwarf}
+      />
 
       <section className="center-stack">
         <section className="panel production">
