@@ -1,5 +1,6 @@
 import type {
   ColonyState,
+  ExpeditionResult,
   CraftingRecipe,
   CraftingTask,
   Dwarf,
@@ -17,7 +18,8 @@ export function advanceDay(state: ColonyState): ColonyState {
 
   // Each dwarf produces resources based on their assignment
   state.dwarves.forEach((dwarf) => {
-    if (!dwarf.assignment || dwarf.status === "crafting") return;
+    // Only dwarves actually at their job produce (not crafting, not travelling)
+    if (!dwarf.assignment || dwarf.status !== "working") return;
 
     const output = production[dwarf.assignment];
     const toolBonus = dwarf.toolEquipped ? 1 : 0;
@@ -91,6 +93,85 @@ export function missingResources(
     .filter(([resource, amount]) => resources[resource] < amount)
     .map(([resource]) => resource);
 }
+
+// ---- Expeditions -------------------------------------------------------
+
+/** Puts the dwarf on the road. Does nothing if they are not available. */
+export function startExpedition(
+  state: ColonyState,
+  dwarfId: string,
+  destination: string,
+): ColonyState {
+  const dwarf = state.dwarves.find((item) => item.id === dwarfId);
+  if (!dwarf || !isAvailable(dwarf)) return state;
+
+  return {
+    ...state,
+    dwarves: state.dwarves.map((item) =>
+      item.id === dwarfId
+        ? { ...item, status: "expedition", travellingTo: destination }
+        : item,
+    ),
+  };
+}
+
+/** Brings a travelling dwarf home, back to their job (or idle). */
+function returnHome(state: ColonyState, dwarfId: string): Dwarf[] {
+  return state.dwarves.map((item) =>
+    item.id === dwarfId && item.status === "expedition"
+      ? {
+          ...item,
+          status: item.assignment ? "working" : "idle",
+          travellingTo: undefined,
+        }
+      : item,
+  );
+}
+
+/**
+ * Successful return. Rewards are paid only if the dwarf is really on this
+ * expedition and the expedition id has not been paid before.
+ */
+export function completeExpedition(
+  state: ColonyState,
+  dwarfId: string,
+  result: ExpeditionResult,
+): ColonyState {
+  const dwarf = state.dwarves.find((item) => item.id === dwarfId);
+  if (dwarf?.status !== "expedition") return state;
+
+  const alreadyPaid = state.completedExpeditions.includes(result.expeditionId);
+  const resources = { ...state.resources };
+
+  if (!alreadyPaid) {
+    Object.entries(result.rewards ?? {}).forEach(([key, amount]) => {
+      // Ignore anything that is not a known resource or a whole number >= 0
+      if (key in resources && Number.isInteger(amount) && amount >= 0) {
+        resources[key as ResourceKey] += amount;
+      }
+    });
+  }
+
+  return {
+    ...state,
+    resources,
+    dwarves: returnHome(state, dwarfId),
+    completedExpeditions: alreadyPaid
+      ? state.completedExpeditions
+      : [...state.completedExpeditions, result.expeditionId],
+  };
+}
+
+/** Failed or timed-out request: the dwarf comes home, nothing is paid. */
+export function failExpedition(
+  state: ColonyState,
+  dwarfId: string,
+): ColonyState {
+  return { ...state, dwarves: returnHome(state, dwarfId) };
+}
+
+export const destinationLabel = (destination: string) =>
+  destination.replaceAll("-", " ");
 
 export const jobLabel = (job: JobType) => job ? ({ 
   woodcutting: "Woodcutting", 

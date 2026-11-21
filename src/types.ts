@@ -12,6 +12,7 @@ export interface Dwarf {
      status: DwarfStatus; 
      specialty?: Exclude<JobType, null> 
      toolEquipped?: boolean
+     travellingTo?: string
 }
 
 export interface ColonyState { 
@@ -20,6 +21,7 @@ export interface ColonyState {
     dwarves: Dwarf[] 
     hungry: boolean;
     craftingTasks: CraftingTask[];
+    completedExpeditions: string[];
 }
 
 export interface ExpeditionResult { 

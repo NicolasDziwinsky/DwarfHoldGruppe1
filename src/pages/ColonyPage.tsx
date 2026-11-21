@@ -19,7 +19,7 @@ export function ColonyPage() {
 
   const dailyOutput = colony.dwarves.reduce<Record<ResourceKey, number>>(
     (total, dwarf) => {
-      if (dwarf.assignment) {
+      if (dwarf.assignment && dwarf.status === "working") {
         const output = production[dwarf.assignment];
         Object.entries(output).forEach(([resource, amount]) => {
           total[resource as ResourceKey] += amount ?? 0;
@@ -144,8 +144,10 @@ export function ColonyPage() {
             {expeditionPending ? "Beyond the gate…" : "Send expedition"}
           </button>
           <p>
-            A result returns in one request. The selected dwarf is unavailable
-            while travelling.
+            The scout is away until the request returns and produces nothing
+            meanwhile. Tools travel with the dwarf and cannot be returned until
+            they are home. A failed or timed-out trip brings the dwarf back
+            with no reward.
           </p>
         </section>
 

@@ -196,3 +196,94 @@ Styles: `.status.crafting`, `.portrait i.crafting`, `.forge-stack`, `.forge .cra
 
 - a task counts down without paying out early, and the dwarf stays `crafting`,
 - after the last day, the reward is in the stores, the task is gone, and the dwarf is `idle`.
+
+# D4
+
+## Resilient expeditions
+
+A dwarf can be sent to a destination. While they travel, they are unavailable for anything else and produce nothing. The rewards are applied **exactly once** after a successful trip. A failed or timed-out request brings the dwarf home and pays nothing. Fast or repeated clicks cannot put a dwarf in two places at once.
+
+### Data model
+
+- **`Dwarf.travellingTo?: string`** (`src/types.ts`) holds the destination while the dwarf is away. It is cleared when they come back.
+- **`ColonyState.completedExpeditions: string[]`** holds the IDs of every expedition that has already paid out, for example `"exp-17"`. It is used to stop the same result from being paid twice.
+
+### State logic: pure functions in `src/simulation.ts`
+
+All expedition state changes are pure functions. Each one takes a state and returns a new state, the same way `advanceDay` works. This keeps the rules in one place and makes them easy to test.
+
+| Function | What it does | When it does nothing |
+| --- | --- | --- |
+| `startExpedition(state, dwarfId, destination)` | Sets the dwarf's status to `expedition` and sets `travellingTo`. | The dwarf is not available, meaning not `idle` or `working`. This covers a dwarf who is crafting or already travelling. |
+| `completeExpedition(state, dwarfId, result)` | Adds the rewards, brings the dwarf home and stores `result.expeditionId` in `completedExpeditions`. | The dwarf is not on an expedition. If the ID was already paid, the dwarf still comes home but **no rewards** are added. |
+| `failExpedition(state, dwarfId)` | Brings the dwarf home. **No rewards.** | — |
+
+"Home" means the dwarf goes back to their job (`working`) if they still have an assignment, and to `idle` otherwise.
+
+`completeExpedition` also checks the server's rewards before using them. Only known resource keys with whole numbers of at least 0 are added, so a broken response cannot create invalid resources.
+
+### Sending an expedition: `sendExpedition` in `src/state/ColonyProvider.tsx`
+
+1. If the dwarf is busy, the function stops and the Chronicle logs *"… is busy and cannot leave the hold."*
+2. The dwarf is added to `inFlight`, a `useRef` set. If a request for this dwarf is already running, the function stops.
+3. `startExpedition` sends the dwarf out.
+4. It calls the API with `beginExpedition` (`src/api.ts`):
+   - **On success:** `completeExpedition`, and the server's message is logged as a good event.
+   - **On any error:** `failExpedition`, and the Chronicle logs *"… returned empty-handed: <reason>"*.
+5. In a `finally` block, the dwarf is taken out of `inFlight` and the pending flag is cleared. This happens whatever the outcome.
+
+### Protection against slow or repeated actions
+
+| Problem | Protection |
+| --- | --- |
+| Double-click before React re-renders | The `inFlight` ref changes immediately. The second click sees the request already running and does nothing. |
+| A stale `colony` value in the click handler | `startExpedition` runs inside the `setColony` updater and checks again against the **latest** state. |
+| The dwarf got busy before the result came back | `completeExpedition` only pays if the dwarf is still on an expedition. |
+| The same result arrives twice | The `completedExpeditions` ID list stops a second payout. |
+| The server hangs | `beginExpedition` gives up after **10 seconds** (`AbortSignal.timeout`). This counts as a failure, so the dwarf comes home. |
+| The server is unreachable, or the error response is not JSON | A network error and a body that is not JSON are both turned into a readable error and handled as a failure. |
+
+Because of these checks, a dwarf can never be marked as travelling for ever, and resources are never paid twice.
+
+### Travelling dwarves are unavailable
+
+- `advanceDay` only counts production from dwarves whose status is `working`, so a travelling dwarf produces nothing. Their job is kept, and they go back to it when they return.
+- The "Daily Production" preview on the Colony page uses the same rule.
+- Travelling dwarves still eat 1 food per day.
+- **In the UI** (roster and expedition panel):
+  - the job dropdown and the tool button are disabled,
+  - the dwarf is greyed out in the "Scout" picker, with their status shown,
+  - the Forge's "Smith" dropdown does not list them.
+- **In the provider:** `assignDwarf`, `toggleTool`, `craftTool` and `sendExpedition` all refuse dwarves who are not available.
+
+### Team decision: tools travel with the dwarf
+
+An equipped tool **stays with the travelling dwarf**:
+
+- It stays equipped and still counts as owned by that dwarf.
+- It gives **no production bonus** while the dwarf is away, because the dwarf produces nothing.
+- It **cannot be returned** until the dwarf is home, because the tool button is locked.
+
+**Why:** this is the simplest rule that keeps the inventory consistent. The tool count never changes during a trip, and the player does not have to equip the tool again afterwards. The rule is explained in the interface, in the text below the Expedition panel.
+
+### How the UI shows expeditions
+
+- **Roster:** a travelling dwarf has the status tag **EXPEDITION**, a "🗺️ Old mine" tag with the destination, and the amber status dot on their portrait. Style: `.status.travelling` in `src/styles.css`.
+- **Expedition panel:**
+  - The button reads *"Beyond the gate…"* while a request is running.
+  - It is disabled if the selected scout is not available.
+  - The text below the panel explains the rules: away until the request returns, no production, tools travel with the dwarf, a failed trip brings the dwarf back.
+- **Chronicle:** logs the departure, the success message, or the failure reason.
+
+### Tests
+
+`src/simulation.test.ts` has an `expeditions` test group:
+
+- a travelling dwarf is unavailable, produces nothing, and cannot be sent out twice,
+- rewards are paid exactly once: a repeated completion is ignored, and the same expedition ID is not paid again on a later trip,
+- a failed expedition brings the dwarf back to work and leaves the resources unchanged.
+
+**How to check by hand:**
+
+- Send a dwarf to **Blocked Pass**. The server returns 503. The dwarf comes home after about 2 seconds and gets no reward.
+- The server can also be slowed down with `?latency=5000`.

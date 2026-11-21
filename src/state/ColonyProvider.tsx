@@ -2,6 +2,10 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { beginExpedition } from "../api";
 import {
   advanceDay,
+  completeExpedition,
+  destinationLabel,
+  failExpedition,
+  startExpedition,
   isAvailable,
   jobLabel,
   missingResources,
@@ -63,6 +67,7 @@ const initialState: ColonyState = {
   ],
   hungry: false,
   craftingTasks: [],
+  completedExpeditions: [],
 };
 
 
@@ -218,14 +223,14 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
 
   function toggleTool(id: string) {
     const dwarf = colony.dwarves.find((item) => item.id === id);
-    if (!dwarf || dwarf.status === "crafting") return;
+    if (!dwarf || !isAvailable(dwarf)) return;
 
     const equipping = !dwarf.toolEquipped;
     if (equipping && colony.resources.tools < 1) return;
 
     setColony((current) => {
       const target = current.dwarves.find((item) => item.id === id);
-      if (!target || target.status === "crafting") return current;
+      if (!target || !isAvailable(target)) return current;
 
       // Re-check against the latest state so tools can never go negative
       // or be returned twice.
@@ -258,90 +263,49 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  // Dwarves whose request is still running. A ref updates immediately, so a
+  // fast double-click is caught even before React re-renders.
+  const inFlight = useRef(new Set<string>());
+
+  function log(message: string, tone?: Activity["tone"]) {
+    setActivities((current) =>
+      [
+        { id: crypto.randomUUID(), day: colony.day, message, tone },
+        ...current,
+      ].slice(0, 6),
+    );
+  }
+
   async function sendExpedition(dwarfId: string, destination: string) {
     const dwarf = colony.dwarves.find((item) => item.id === dwarfId);
-    if (!dwarf) return;
+    if (!dwarf || inFlight.current.has(dwarfId)) return;
     if (!isAvailable(dwarf)) {
-      setActivities((current) =>
-        [
-          {
-            id: crypto.randomUUID(),
-            day: colony.day,
-            message: `${dwarf.name} is busy and cannot leave the hold.`,
-            tone: "warning" as const,
-          },
-          ...current,
-        ].slice(0, 6),
-      );
+      log(`${dwarf.name} is busy and cannot leave the hold.`, "warning");
       return;
     }
 
+    inFlight.current.add(dwarfId);
     setExpeditionPending(true);
-    setColony((current) => ({
-      ...current,
-      dwarves: current.dwarves.map((item) =>
-        item.id === dwarf.id ? { ...item, status: "expedition" } : item,
-      ),
-    }));
-    setActivities((current) => [
-      {
-        id: crypto.randomUUID(),
-        day: colony.day,
-        message: `${dwarf.name} departed for ${destination.replace("-", " ")}.`,
-      },
-      ...current,
-    ]);
+    setColony((current) => startExpedition(current, dwarfId, destination));
+    log(`${dwarf.name} departed for ${destinationLabel(destination)}.`);
 
     try {
-      const result = await beginExpedition(dwarf.id, destination);
-
-      setColony((current) => ({
-        ...current,
-        resources: Object.entries(result.rewards).reduce(
-          (all, [key, amount]) => ({
-            ...all,
-            [key]: all[key as ResourceKey] + (amount ?? 0),
-          }),
-          current.resources,
-        ),
-        dwarves: current.dwarves.map((item) =>
-          item.id === dwarf.id
-            ? {
-                ...item,
-                status: item.assignment ? "working" : "idle",
-              }
-            : item,
-        ),
-      }));
-      setActivities((current) =>
-        [
-          {
-            id: result.expeditionId,
-            day: colony.day,
-            message: result.message,
-            tone: "good" as const,
-          },
-          ...current,
-        ].slice(0, 6),
-      );
+      const result = await beginExpedition(dwarfId, destination);
+      setColony((current) => completeExpedition(current, dwarfId, result));
+      log(result.message, "good");
     } catch (error) {
-      setActivities((current) =>
-        [
-          {
-            id: crypto.randomUUID(),
-            day: colony.day,
-            message:
-              error instanceof Error
-                ? error.message
-                : "The expedition was lost from view.",
-            tone: "warning" as const,
-          },
-          ...current,
-        ].slice(0, 6),
+      // Always bring the dwarf home on failure; no rewards are paid.
+      setColony((current) => failExpedition(current, dwarfId));
+      log(
+        `${dwarf.name} returned empty-handed: ${
+          error instanceof Error ? error.message : "the route was lost."
+        }`,
+        "warning",
       );
+    } finally {
+      inFlight.current.delete(dwarfId);
+      setExpeditionPending(false);
     }
-
-    setExpeditionPending(false);
   }
 
   const value: ColonyContextValue = {

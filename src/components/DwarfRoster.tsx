@@ -1,4 +1,4 @@
-import { jobLabel } from "../simulation";
+import { destinationLabel, jobLabel } from "../simulation";
 import type { CraftingTask, Dwarf, JobType } from "../types";
 
 const jobs: Exclude<JobType, null>[] = [
@@ -89,8 +89,7 @@ export function DwarfRoster({
                     dwarf.toolEquipped ? "tool-toggle equipped" : "tool-toggle"
                   }
                   disabled={
-                    dwarf.status === "crafting" ||
-                    (!dwarf.toolEquipped && toolsAvailable < 1)
+                    isBusy || (!dwarf.toolEquipped && toolsAvailable < 1)
                   }
                   onClick={() => onToggleTool(dwarf.id)}
                 >
@@ -104,6 +103,11 @@ export function DwarfRoster({
 
               <div className="status-tags">
                 <span className="status">{dwarf.status}</span>
+                {dwarf.travellingTo && (
+                  <span className="status travelling">
+                    🗺️ {destinationLabel(dwarf.travellingTo)}
+                  </span>
+                )}
                 {task && (
                   <span className="status crafting">
                     🔨 {task.recipe.name} · {task.daysRemaining}d left
