@@ -1,5 +1,5 @@
 import { jobLabel } from "../simulation";
-import type { Dwarf, JobType } from "../types";
+import type { CraftingTask, Dwarf, JobType } from "../types";
 
 const jobs: Exclude<JobType, null>[] = [
   "woodcutting",
@@ -11,6 +11,7 @@ interface Props {
   dwarves: Dwarf[];
   hungry: boolean;
   toolsAvailable: number;
+  craftingTasks: CraftingTask[];
   onAssign: (id: string, job: JobType) => void;
   onToggleTool: (id: string) => void;
 }
@@ -19,6 +20,7 @@ export function DwarfRoster({
   dwarves,
   hungry,
   toolsAvailable,
+  craftingTasks,
   onAssign,
   onToggleTool,
 }: Props) {
@@ -41,6 +43,8 @@ export function DwarfRoster({
       <div className="dwarf-list">
         {dwarves.map((dwarf) => {
           const isAway = dwarf.status === "expedition";
+          const task = craftingTasks.find((item) => item.dwarfId === dwarf.id);
+          const isBusy = isAway || dwarf.status === "crafting";
           const specialty = dwarf.specialty
             ? `Skilled in ${jobLabel(dwarf.specialty)}`
             : "Generalist";
@@ -63,7 +67,7 @@ export function DwarfRoster({
 
                 <select
                   value={dwarf.assignment ?? ""}
-                  disabled={isAway}
+                  disabled={isBusy}
                   onChange={(event) =>
                     onAssign(
                       dwarf.id,
@@ -84,7 +88,10 @@ export function DwarfRoster({
                   className={
                     dwarf.toolEquipped ? "tool-toggle equipped" : "tool-toggle"
                   }
-                  disabled={!dwarf.toolEquipped && toolsAvailable < 1}
+                  disabled={
+                    dwarf.status === "crafting" ||
+                    (!dwarf.toolEquipped && toolsAvailable < 1)
+                  }
                   onClick={() => onToggleTool(dwarf.id)}
                 >
                   {dwarf.toolEquipped
@@ -97,6 +104,11 @@ export function DwarfRoster({
 
               <div className="status-tags">
                 <span className="status">{dwarf.status}</span>
+                {task && (
+                  <span className="status crafting">
+                    🔨 {task.recipe.name} · {task.daysRemaining}d left
+                  </span>
+                )}
                 {hungry && !isAway && (
                   <span
                     className="status hungry"

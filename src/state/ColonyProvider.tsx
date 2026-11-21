@@ -1,12 +1,19 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { beginExpedition } from "../api";
-import { advanceDay, jobLabel } from "../simulation";
+import {
+  advanceDay,
+  isAvailable,
+  jobLabel,
+  missingResources,
+} from "../simulation";
 import type {
   Activity,
   ColonyState,
   JobType,
   ResourceKey,
+  CraftingRecipe,
 } from "../types";
+import { resourceDetails } from "../resources";
 import { ColonyContext, type ColonyContextValue } from "./ColonyContext";
 
 const initialState: ColonyState = {
@@ -16,6 +23,7 @@ const initialState: ColonyState = {
     stone: 9,
     food: 18,
     tools: 1,
+    swords: 0,
   },
   dwarves: [
     {
@@ -54,7 +62,9 @@ const initialState: ColonyState = {
     },
   ],
   hungry: false,
+  craftingTasks: [],
 };
+
 
 export function ColonyProvider({ children }: { children: ReactNode }) {
   const [colony, setColony] = useState(initialState);
@@ -79,11 +89,41 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(timer);
   }, [paused]);
 
+  // Log finished crafting work. A task only leaves the list when
+  // advanceDay completes it, so "was there before, gone now" = finished.
+  const previousTasks = useRef(colony.craftingTasks);
+  useEffect(() => {
+    const finished = previousTasks.current.filter(
+      (task) =>
+        !colony.craftingTasks.some((item) => item.dwarfId === task.dwarfId),
+    );
+    previousTasks.current = colony.craftingTasks;
+    if (finished.length === 0) return;
+
+    setActivities((current) =>
+      [
+        ...finished.map((task) => ({
+          id: crypto.randomUUID(),
+          day: colony.day,
+          message: `${
+            colony.dwarves.find((dwarf) => dwarf.id === task.dwarfId)?.name ??
+            "A dwarf"
+          } finished forging a ${task.recipe.name}.`,
+          tone: "good" as const,
+        })),
+        ...current,
+      ].slice(0, 6),
+    );
+  }, [colony.craftingTasks, colony.day, colony.dwarves]);
+
   function assignDwarf(id: string, assignment: JobType) {
+    const dwarf = colony.dwarves.find((item) => item.id === id);
+    if (!dwarf || !isAvailable(dwarf)) return;
+
     setColony((current) => ({
       ...current,
       dwarves: current.dwarves.map((dwarf) =>
-        dwarf.id === id
+        dwarf.id === id && isAvailable(dwarf)
           ? {
               ...dwarf,
               assignment,
@@ -93,7 +133,6 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
       ),
     }));
 
-    const dwarf = colony.dwarves.find((item) => item.id === id);
     setActivities((current) =>
       [
         {
@@ -106,36 +145,71 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  function craftTool() {
-    if (colony.resources.wood < 3) {
-      setActivities((current) => [
-        {
-          id: crypto.randomUUID(),
-          day: colony.day,
-          message: "The forge needs more timber.",
-          tone: "warning" as const,
-        },
-        ...current,
-      ]);
+  function craftTool(dwarfId: string, recipe: CraftingRecipe) {
+    const dwarf = colony.dwarves.find((item) => item.id === dwarfId);
+    if (!dwarf) return;
+
+    const warn = (message: string) =>
+      setActivities((current) =>
+        [
+          {
+            id: crypto.randomUUID(),
+            day: colony.day,
+            message,
+            tone: "warning" as const,
+          },
+          ...current,
+        ].slice(0, 6),
+      );
+
+    if (!isAvailable(dwarf)) {
+      warn(`${dwarf.name} is busy and cannot work the forge.`);
       return;
     }
 
-    setColony((current) => ({
-      ...current,
-      resources: {
-        ...current.resources,
-        wood: current.resources.wood - 3,
-        stone: current.resources.stone - 2,
-        tools: current.resources.tools + 1,
-      },
-    }));
+    const missing = missingResources(colony.resources, recipe);
+    if (missing.length > 0) {
+      warn(
+        `The forge needs more ${missing.map((key) => resourceDetails[key].label.toLowerCase()).join(" and ")}.`,
+      );
+      return;
+    }
+
+    setColony((current) => {
+      // Re-check against the latest state so a double-click can't start
+      // two tasks or spend resources that are no longer there.
+      const target = current.dwarves.find((item) => item.id === dwarfId);
+      if (!target || !isAvailable(target)) return current;
+      if (missingResources(current.resources, recipe).length > 0) {
+        return current;
+      }
+
+      const resources = { ...current.resources };
+      Object.entries(recipe.requiredResources).forEach(([key, amount]) => {
+        resources[key as ResourceKey] -= amount ?? 0;
+      });
+
+      return {
+        ...current,
+        resources,
+        dwarves: current.dwarves.map((item) =>
+          item.id === dwarfId
+            ? { ...item, status: "crafting", assignment: null }
+            : item,
+        ),
+        craftingTasks: [
+          ...current.craftingTasks,
+          { dwarfId, recipe, daysRemaining: recipe.daysToComplete },
+        ],
+      };
+    });
+
     setActivities((current) =>
       [
         {
           id: crypto.randomUUID(),
           day: colony.day,
-          message: "A sturdy iron tool joins the stores.",
-          tone: "good" as const,
+          message: `${dwarf.name} begins forging a ${recipe.name} (${recipe.daysToComplete} days).`,
         },
         ...current,
       ].slice(0, 6),
@@ -144,14 +218,14 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
 
   function toggleTool(id: string) {
     const dwarf = colony.dwarves.find((item) => item.id === id);
-    if (!dwarf) return;
+    if (!dwarf || dwarf.status === "crafting") return;
 
     const equipping = !dwarf.toolEquipped;
     if (equipping && colony.resources.tools < 1) return;
 
     setColony((current) => {
       const target = current.dwarves.find((item) => item.id === id);
-      if (!target) return current;
+      if (!target || target.status === "crafting") return current;
 
       // Re-check against the latest state so tools can never go negative
       // or be returned twice.
@@ -187,6 +261,20 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
   async function sendExpedition(dwarfId: string, destination: string) {
     const dwarf = colony.dwarves.find((item) => item.id === dwarfId);
     if (!dwarf) return;
+    if (!isAvailable(dwarf)) {
+      setActivities((current) =>
+        [
+          {
+            id: crypto.randomUUID(),
+            day: colony.day,
+            message: `${dwarf.name} is busy and cannot leave the hold.`,
+            tone: "warning" as const,
+          },
+          ...current,
+        ].slice(0, 6),
+      );
+      return;
+    }
 
     setExpeditionPending(true);
     setColony((current) => ({

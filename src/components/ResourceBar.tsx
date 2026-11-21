@@ -1,11 +1,5 @@
-import type { Resources } from "../types";
-
-const details = {
-  wood: ["🪵", "Timber"],
-  stone: ["🪨", "Stone"],
-  food: ["🍄", "Rations"],
-  tools: ["⚒️", "Tools"],
-} as const;
+import { resourceDetails } from "../resources";
+import type { ResourceKey, Resources } from "../types";
 
 interface Props {
   resources: Resources;
@@ -16,7 +10,7 @@ export function ResourceBar({ resources, hungry }: Props) {
   return (
     <section className="resource-bar">
       {Object.entries(resources).map(([key, value]) => {
-        const [icon, label] = details[key as keyof Resources];
+        const { icon, label } = resourceDetails[key as ResourceKey];
 
         return (
           <article

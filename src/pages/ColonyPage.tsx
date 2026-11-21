@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Chronicle } from "../components/Chronicle";
 import { DwarfRoster } from "../components/DwarfRoster";
-import { jobLabel, production } from "../simulation";
+import { isAvailable, jobLabel, production } from "../simulation";
 import { useColony } from "../state/ColonyContext";
 import type { ResourceKey } from "../types";
 
@@ -32,6 +32,7 @@ export function ColonyPage() {
       stone: 0,
       food: -colony.dwarves.length,
       tools: 0,
+      swords: 0,
     },
   );
 
@@ -41,6 +42,7 @@ export function ColonyPage() {
         dwarves={colony.dwarves}
         hungry={colony.hungry}
         toolsAvailable={colony.resources.tools}
+        craftingTasks={colony.craftingTasks}
         onAssign={assignDwarf}
         onToggleTool={toggleTool}
       />
@@ -106,8 +108,13 @@ export function ColonyPage() {
               onChange={(event) => setExpeditionDwarf(event.target.value)}
             >
               {colony.dwarves.map((dwarf) => (
-                <option key={dwarf.id} value={dwarf.id}>
+                <option
+                  key={dwarf.id}
+                  value={dwarf.id}
+                  disabled={!isAvailable(dwarf)}
+                >
                   {dwarf.name}
+                  {isAvailable(dwarf) ? "" : ` (${dwarf.status})`}
                 </option>
               ))}
             </select>
@@ -126,7 +133,12 @@ export function ColonyPage() {
           </label>
 
           <button
-            disabled={expeditionPending}
+            disabled={
+              expeditionPending ||
+              !colony.dwarves.some(
+                (dwarf) => dwarf.id === expeditionDwarf && isAvailable(dwarf),
+              )
+            }
             onClick={() => sendExpedition(expeditionDwarf, destination)}
           >
             {expeditionPending ? "Beyond the gate…" : "Send expedition"}

@@ -96,3 +96,103 @@ This guards against fast double-clicks, or two updates being queued before React
 ### Simulation: More production when tool is equipped
 
 - File: `src/simulation.ts`. The variable `toolBonus` contains a int that is 1 when the working dwarf has a tool equipped. 0 when not. This int gets added to the resource calculation.
+
+# D3
+
+## Crafting as colony work
+
+Crafting is not instant. A recipe needs **materials**, a free **dwarf** and **time**. While the dwarf works at the forge, they cannot do anything else. When the work is done, the reward goes into the stores and the dwarf is idle again.
+
+### Data model
+
+- **`CraftingRecipe`** (`src/types.ts`) has a `name`, an `icon`, `requiredResources`, `rewards` and `daysToComplete`. The recipes are defined in `src/pages/ForgePage.tsx` in the `recipes` list. There are currently two:
+
+  | Recipe    | Cost              | Reward    | Time   |
+  | --------- | ----------------- | --------- | ------ |
+  | Iron Tool | 3 timber, 2 stone | 1 tool    | 5 days |
+  | Sword     | 8 timber, 5 stone | 1 sword   | 5 days |
+
+- **`CraftingTask`** (`src/types.ts`) is one job at the forge in progress. It holds the `dwarfId`, the `recipe` and the `daysRemaining`.
+- **`ColonyState.craftingTasks`** holds every active task. It starts empty.
+- **`DwarfStatus`** has a new value, `"crafting"`.
+
+### Starting a task: `craftTool(dwarfId, recipe)`
+
+The logic lives in `src/state/ColonyProvider.tsx`. Components can use it through the colony context.
+
+1. **The dwarf must be eligible.** Only dwarves who are `idle` or `working` on a local job can craft. This is checked by `isAvailable(dwarf)` in `src/simulation.ts`. A dwarf who is crafting or on an expedition is refused.
+2. **The materials must be in the stores.** `missingResources(resources, recipe)` in `src/simulation.ts` checks *every* resource the recipe needs, not only timber.
+3. If either check fails, nothing changes. The Chronicle gets a warning instead, for example *"The forge needs more timber and stone."* or *"Yrsa Flintbraid is busy and cannot work the forge."*
+4. If both checks pass, **one** state update does all of this:
+   - takes the recipe's materials out of the stores,
+   - sets the dwarf's status to `crafting` and clears their job (`assignment: null`),
+   - adds a new task with `daysRemaining = recipe.daysToComplete`.
+5. The Chronicle logs the start, for example *"Bromli Copperkeg begins forging a Sword (5 days)."*
+
+**Invalid attempts change nothing.** This is checked at two levels:
+
+- before the update, so the player gets a warning, and
+- again inside the `setColony` updater against the **latest** state.
+
+The second check matters when two clicks happen before React re-renders. Without it, a fast double-click could start two tasks or spend materials that are already gone. With it, the update returns the unchanged state. Workers and resources change together in a single update, so they cannot get out of sync.
+
+### Daily progress: `advanceDay`
+
+On every tick, `advanceDay` in `src/simulation.ts` handles crafting:
+
+- Each task's `daysRemaining` goes down by 1.
+- When a task reaches 0, it is finished:
+  - the recipe's `rewards` are added to the stores, for example `tools + 1` or `swords + 1`,
+  - the dwarf's status is set back to `idle`,
+  - the task is removed from `craftingTasks`.
+- Crafting dwarves produce no resources from jobs. They are skipped in the production step.
+- Crafting dwarves still eat 1 food per day, like every other dwarf.
+- Hunger does not slow crafting down.
+
+Rewards are paid in the same pure function that removes the task, so a task can pay out **only once**. `advanceDay` returns a new state and never changes the old one.
+
+A small effect in `ColonyProvider` watches `craftingTasks`. When a task disappears from the list, it logs *"… finished forging a Sword."* in the Chronicle. A task only leaves the list when it finishes, so this is reliable.
+
+### A crafting dwarf can't be used for anything else
+
+Every action that uses a dwarf checks for the `crafting` status. The check happens both in the UI and in the provider function:
+
+| Action            | UI                                                 | Provider guard                               |
+| ----------------- | -------------------------------------------------- | -------------------------------------------- |
+| Change job        | Job dropdown disabled in the roster                | `assignDwarf` ignores busy dwarves           |
+| Equip/return tool | Tool button disabled in the roster                 | `toggleTool` ignores crafting dwarves        |
+| Send expedition   | Dwarf greyed out in the picker, button disabled    | `sendExpedition` refuses and logs a warning  |
+| Start crafting    | Dwarf not listed in the "Smith" dropdown           | `craftTool` refuses and logs a warning       |
+
+The same availability rule also stops a dwarf who is already on an expedition from being sent out again.
+
+### How the UI shows crafting
+
+**Forge page** (`src/pages/ForgePage.tsx`)
+
+- **A card for each recipe**, with:
+  - a **Smith** dropdown listing only the free dwarves (it says "No dwarf is free" if there are none),
+  - the time needed, the cost and the reward,
+  - a **Start forging** button. It is disabled and reads *"Not enough materials"* when the stores are short.
+- **Costs and rewards are drawn from the recipe data.** The small `ResourceList` component renders any `Partial<Resources>`, for example *"8 🪵 + 5 🪨 → 1 ⚔️"*. A new recipe or a new resource therefore appears without changing the card. Icons and labels come from one shared map, `resourceDetails` in `src/resources.ts`, which the resource bar uses too.
+- **The "Work in progress" panel** lists every active task: who is crafting, what they are crafting, how many days are left, and a progress bar.
+
+**Dwarf roster** (`src/components/DwarfRoster.tsx`)
+
+- The dwarf's status tag reads **CRAFTING**, and the status dot on their portrait turns orange.
+- An extra tag shows the recipe and the time left, for example **"🔨 Sword · 3d left"**.
+- The job dropdown and the tool button are locked.
+
+Styles: `.status.crafting`, `.portrait i.crafting`, `.forge-stack`, `.forge .crafter` and `.forge-queue` in `src/styles.css`.
+
+### Resource types
+
+- `Resources` now has a `swords` count, and the resource bar shows it with ⚔️.
+- `ResourceKey` is now `keyof Resources` instead of its own separate list. When a resource is added, TypeScript points out every place that still needs updating. This is how the missing `swords` values in the daily-output preview and the tests were found.
+
+### Tests
+
+`src/simulation.test.ts` has a `crafting` test group:
+
+- a task counts down without paying out early, and the dwarf stays `crafting`,
+- after the last day, the reward is in the stores, the task is gone, and the dwarf is `idle`.
