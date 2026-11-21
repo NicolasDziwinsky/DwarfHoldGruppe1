@@ -93,4 +93,6 @@ This guards against fast double-clicks, or two updates being queued before React
 - The Tools tile in the resource bar shows the stores count. It goes down when a tool is equipped and up when one is returned.
 - Styles: `.tool-toggle`, `.tool-toggle.equipped` and `.tool-toggle:disabled` in `src/styles.css`.
 
+### Simulation: More production when tool is equipped
 
+- File: `src/simulation.ts`. The variable `toolBonus` contains a int that is 1 when the working dwarf has a tool equipped. 0 when not. This int gets added to the resource calculation.

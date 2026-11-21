@@ -12,14 +12,15 @@ export function advanceDay(state: ColonyState): ColonyState {
     if (!dwarf.assignment) return;
 
     const output = production[dwarf.assignment];
+    const toolBonus = dwarf.toolEquipped ? 1 : 0;
 
     if (state.hungry) {
       Object.entries(output).forEach(([resource, amount]) => {
-      resources[resource as keyof Resources] += Math.floor(amount*0.5) ?? 0;
+      resources[resource as keyof Resources] += (Math.floor(amount*0.5) ?? 0) + toolBonus;
     });
     } else {
     Object.entries(output).forEach(([resource, amount]) => {
-      resources[resource as keyof Resources] += amount ?? 0;
+      resources[resource as keyof Resources] += (amount ?? 0) + toolBonus;
     });
 
   }});
@@ -32,10 +33,8 @@ export function advanceDay(state: ColonyState): ColonyState {
 
   const hungry = resources.food === 0;
 
-
   console.log("Hungry state:", state.hungry);
   
-
   return { ...state, day: state.day + 1, resources, hungry };
 }
 
