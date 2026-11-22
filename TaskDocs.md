@@ -287,3 +287,161 @@ An equipped tool **stays with the travelling dwarf**:
 
 - Send a dwarf to **Blocked Pass**. The server returns 503. The dwarf comes home after about 2 seconds and gets no reward.
 - The server can also be slowed down with `?latency=5000`.
+
+# D5
+
+## Save and restore
+
+Requirement D5 in `REQUIREMENTS.md` requires meaningful colony state to survive a browser refresh, corrupt or incompatible saves to fall back safely, and a clearly communicated policy for active forge or expedition work interrupted by refresh.
+
+The proposed implementation keeps a versioned snapshot in browser `localStorage`. It will not depend on React state surviving a refresh or on the expedition API retaining information for the browser.
+
+### Files and data introduced
+
+The implementation adds a dedicated persistence module:
+
+- `src/state/colonySave.ts`
+  - defines the `COLONY_SAVE_KEY` and `COLONY_SAVE_VERSION`,
+  - declares the versioned `ColonySave` structure,
+  - validates saved colony data,
+  - reads JSON from `localStorage`,
+  - writes snapshots back to `localStorage`.
+
+`ColonySave` contains:
+
+```ts
+interface ColonySave {
+  version: typeof COLONY_SAVE_VERSION;
+  savedAt: string;
+  colony: ColonyState;
+  paused: boolean;
+  activities: Activity[];
+}
+```
+
+The save is versioned so future changes to the state shape can be detected rather than loaded as silently incompatible data.
+
+### Provider changes
+
+`src/state/ColonyProvider.tsx` is modified to use a save-aware initializer instead of always starting with `initialState`.
+
+The provider will:
+
+1. Read and parse the saved JSON.
+2. Check the save version.
+3. Validate the colony state and the other saved fields.
+4. Fall back to `initialState`, paused mode off, and the welcome Chronicle entry when no valid save exists.
+5. Persist `colony`, `paused`, and `activities` whenever one of these values changes.
+6. Save once more on `pagehide` or `beforeunload` so a refresh immediately after a state change is handled.
+
+The provider does **not** restore the temporary request fields:
+
+- `expeditionPending`
+- `inFlight`
+- API promises
+- interval timers
+
+These values describe work owned by the currently mounted React provider. They must be reconstructed or cleared after remount.
+
+### Corrupt and incompatible saves
+
+`readColonySave()` catches unavailable storage or invalid JSON and returns no usable save. `isColonyState()` checks the shape and types of the stored colony before it is accepted.
+
+At minimum, validation checks:
+
+- `day` and `hungry` types,
+- the five resource fields,
+- arrays for dwarves, crafting tasks and completed expeditions.
+
+A more complete implementation will also validate dwarf fields, crafting recipes and resource values. If the version is unknown or the stored state is invalid, the provider uses a fresh `initialState`.
+
+This policy avoids an application crash and makes a broken browser save recoverable.
+
+### Forge task policy
+
+Forge tasks are meaningful colony state, so they remain in `ColonyState.craftingTasks` and are restored with the save.
+
+For an active forge task:
+
+- required resources remain deducted,
+- the assigned dwarf remains `crafting`,
+- the recipe and `daysRemaining` remain stored,
+- the countdown resumes with the normal interval after remount,
+- the reward is paid by `advanceDay()` when the task reaches zero,
+- the dwarf then becomes `idle`.
+
+Refreshing does not refund resources or cancel a forge task.
+
+The reason for this rule is that all information required to calculate the task already exists in the saved `ColonyState`. The same `advanceDay()` logic in `src/simulation.ts` can therefore finish the task consistently.
+
+The Forge page will show this policy near the "Work in progress" panel:
+
+> Work in progress is saved automatically. Refreshing the hold does not refund materials or cancel the task.
+
+This makes the interruption behavior visible to the player.
+
+### Expedition policy
+
+Expeditions are not treated as resumable after refresh in this implementation.
+
+The provider's save loader treats every saved dwarf with `status: "expedition"` as interrupted:
+
+- the dwarf's status changes back to `working` if it has an assignment,
+- the dwarf becomes `idle` if it has no assignment,
+- `travellingTo` is removed,
+- no resources are added,
+- no expedition reward is paid,
+- a warning is added to the Chronicle.
+
+The warning states that the expedition was interrupted by a refresh and the dwarf returned empty-handed.
+
+The policy is deliberately conservative because a refresh cannot prove whether the API result succeeded before the browser was unloaded. It also avoids:
+
+- paying a reward twice,
+- leaving a dwarf stranded in `expedition`,
+- replaying the same API request after remount,
+- and accepting an unknown server response as successful.
+
+The existing `failExpedition()` behavior in `src/simulation.ts` provides the same local dwarf-return result for an in-progress request that fails in normal operation.
+
+The Colony page will explain this behavior beside the Expedition panel:
+
+> Expeditions are in progress until their result reaches the hold. Refreshing during travel returns the scout home empty-handed.
+
+### Changed UI files
+
+The save policy becomes visible in existing UI files:
+
+- `src/pages/ForgePage.tsx`
+  - adds a visible message explaining that active forge tasks survive refresh.
+- `src/pages/ColonyPage.tsx`
+  - adds a visible message explaining that interrupted expeditions fail and return no reward.
+- `src/state/ColonyProvider.tsx`
+  - restores or repairs saved state and adds Chronicle warnings for interrupted expeditions.
+
+### State excluded from the save
+
+The following are not saved as active work:
+
+- `expeditionPending`,
+- `inFlight`,
+- the in-browser fetch promise,
+- the interval timer,
+- temporary UI selections such as the selected dwarf and destination.
+
+The provider can reconstruct the meaningful persistent state. Temporary UI and request state starts fresh after remount.
+
+### Expected behavior
+
+| Situation | Result |
+| --- | --- |
+| Refresh with no save | Start with `initialState` |
+| Refresh with a valid save | Restore `colony`, pause state and Chronicle |
+| Refresh with an old or corrupt save | Fall back safely to `initialState` |
+| Refresh during forging | Keep materials deducted and continue the task |
+| Refresh after forging completes | Restore its already granted reward and idle dwarf |
+| Refresh during an expedition | Return the dwarf locally with no reward |
+| Refresh after an expedition result reached the provider | Restore the paid result and completed expedition ID normally |
+| Navigate between Colony and Forge | Keep the provider state; do not reset or reload from `initialState` |
+
+

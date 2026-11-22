@@ -20,6 +20,15 @@ import type {
 import { resourceDetails } from "../resources";
 import { ColonyContext, type ColonyContextValue } from "./ColonyContext";
 
+import {
+  COLONY_SAVE_VERSION,
+  isColonyState,
+  readColonySave,
+  saveColony,
+  isRecord,
+  type ColonySave,
+} from "./colonySave";
+
 const initialState: ColonyState = {
   day: 12,
   resources: {
@@ -70,25 +79,150 @@ const initialState: ColonyState = {
   completedExpeditions: [],
 };
 
+const initialActivities: Activity[] = [
+  {
+    id: "welcome",
+    day: 12,
+    message: "The forge fires are lit. Stonehome wakes.",
+  },
+];
+
+
+function loadInitialSave(): ColonySave {
+  const fallback: ColonySave = {
+    version: COLONY_SAVE_VERSION,
+    savedAt: new Date().toISOString(),
+    colony: initialState,
+    paused: false,
+    activities: initialActivities,
+  };
+
+  const raw = readColonySave();
+  if (!isRecord(raw)) return fallback;
+
+  const saved = raw as Record<string, unknown>;
+
+  if (
+    saved.version !== COLONY_SAVE_VERSION ||
+    !isColonyState(saved.colony) ||
+    typeof saved.paused !== "boolean" ||
+    !Array.isArray(saved.activities)
+  ) {
+    return fallback;
+  }
+
+  const colony = saved.colony;
+  const interrupted = colony.dwarves.filter(
+    (dwarf) => dwarf.status === "expedition",
+  );
+
+  if (interrupted.length === 0) {
+    return {
+      version: COLONY_SAVE_VERSION,
+      savedAt:
+        typeof saved.savedAt === "string"
+          ? saved.savedAt
+          : new Date().toISOString(),
+      colony,
+      paused: saved.paused,
+      activities: saved.activities as Activity[],
+    };
+  }
+
+  // A refresh cannot prove that an in-flight expedition succeeded.
+  // Therefore, restore its dwarves locally and pay no rewards.
+  const recoveredColony: ColonyState = {
+    ...colony,
+    dwarves: colony.dwarves.map((dwarf) =>
+      dwarf.status === "expedition"
+        ? {
+            ...dwarf,
+            status: dwarf.assignment ? "working" : "idle",
+            travellingTo: undefined,
+          }
+        : dwarf,
+    ),
+  };
+
+  const recoveryMessages: Activity[] = interrupted.map((dwarf) => ({
+    id: `interrupted-expedition-${dwarf.id}-${saved.savedAt}`,
+    day: colony.day,
+    message: `${dwarf.name}'s expedition was interrupted by a refresh. The dwarf returned empty-handed.`,
+    tone: "warning",
+  }));
+
+  return {
+    version: COLONY_SAVE_VERSION,
+    savedAt:
+      typeof saved.savedAt === "string"
+        ? saved.savedAt
+        : new Date().toISOString(),
+    colony: recoveredColony,
+    paused: saved.paused,
+    activities: [
+      ...recoveryMessages,
+      ...(saved.activities as Activity[]),
+    ].slice(0, 6),
+  };
+}
+
 
 export function ColonyProvider({ children }: { children: ReactNode }) {
-  const [colony, setColony] = useState(initialState);
-  const [paused, setPaused] = useState(false);
+  //const [colony, setColony] = useState(initialState);
+  //const [paused, setPaused] = useState(false);
   const [expeditionPending, setExpeditionPending] = useState(false);
-  const [activities, setActivities] = useState<Activity[]>([
-    {
-      id: "welcome",
-      day: 12,
-      message: "The forge fires are lit. Stonehome wakes.",
-    },
-  ]);
+  //const [activities, setActivities] = useState<Activity[]>(initialActivities);
+  const [loadedSave] = useState(loadInitialSave);
+  const [colony, setColony] = useState<ColonyState>(
+    loadedSave.colony,
+  );
+  const [paused, setPaused] = useState(loadedSave.paused);
+  const [activities, setActivities] = useState<Activity[]>(
+    loadedSave.activities,
+  );
+
+    const latestSave = useRef<ColonySave>({
+    version: COLONY_SAVE_VERSION,
+    savedAt: loadedSave.savedAt,
+    colony,
+    paused,
+    activities,
+  });
+
+  useEffect(() => {
+    const snapshot: ColonySave = {
+      version: COLONY_SAVE_VERSION,
+      savedAt: new Date().toISOString(),
+      colony,
+      paused,
+      activities,
+    };
+
+    latestSave.current = snapshot;
+    saveColony(snapshot);
+  }, [colony, paused, activities]);
+
+  useEffect(() => {
+    const saveBeforeLeaving = () => {
+      saveColony(latestSave.current);
+    };
+
+    window.addEventListener("pagehide", saveBeforeLeaving);
+    window.addEventListener("beforeunload", saveBeforeLeaving);
+
+    return () => {
+      window.removeEventListener("pagehide", saveBeforeLeaving);
+      window.removeEventListener("beforeunload", saveBeforeLeaving);
+    };
+  }, []);
+
 
   useEffect(() => {
     if (paused) return;
 
     const timer = window.setInterval(
       () => setColony((current) => advanceDay(current)),
-      1000,
+      4000,
     );
 
     return () => window.clearInterval(timer);

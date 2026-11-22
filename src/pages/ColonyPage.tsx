@@ -76,6 +76,10 @@ export function ColonyPage() {
                   }{" "}
                   assigned
                 </p>
+                <p>
+                  Expeditions are in progress until their result reaches the hold.
+                  Refreshing during travel returns the scout home empty-handed.
+                </p>
                 <strong>+{Object.values(production[job])[0]} / day</strong>
               </article>
             ))}

@@ -103,6 +103,12 @@ export function ForgePage() {
             <div>
               <small>AT THE ANVIL</small>
               <h2>Work in progress</h2>
+              {colony.craftingTasks.length > 0 && (
+                <p className="save-policy">
+                  Work in progress is saved automatically. Refreshing the hold does not
+                  refund materials or cancel the task.
+                </p>
+                    )}
             </div>
             <span>{colony.craftingTasks.length} active</span>
           </header>
