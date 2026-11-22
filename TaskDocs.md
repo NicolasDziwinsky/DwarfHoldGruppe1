@@ -445,3 +445,133 @@ The provider can reconstruct the meaningful persistent state. Temporary UI and r
 | Navigate between Colony and Forge | Keep the provider state; do not reset or reload from `initialState` |
 
 
+# D6
+
+## A new species joins Stonehome
+
+Requirement D6 in `REQUIREMENTS.md` requires one successful expedition to introduce a recognizably different non-dwarf resident. The chosen resident is **Pebble**, a mole-beast Crystal Delver.
+
+### Unlock by Crystal Cave
+
+The first successful expedition to `crystal-cave` unlocks Pebble.
+
+The unlock is stored in `ColonyState.crystalCaveResidentJoined` in `src/types.ts`. The default value is `false`. It becomes `true` only in `completeExpedition()` after:
+
+- the dwarf is still travelling,
+- the expedition ID has not already been paid,
+- the expedition result has `destination: "crystal-cave"`.
+
+`completeExpedition()` is immutable: it builds a new resident array instead of mutating `state.dwarves`.
+
+The expedition ID remains protected by `ColonyState.completedExpeditions`, and the unlock also checks for an existing mole-beast. Repeated or duplicate Crystal Cave results therefore do not add Pebble twice.
+
+The unlock is calculated outside the reward-payment branch. This keeps a successful Crystal Cave result from losing its one-time resident join simply because its expedition ID has already been recorded.
+
+The successful API response includes `destination` in `server/index.js`, so the colony can determine whether the unlocked expedition was Crystal Cave. After the result, the provider adds a good Chronicle entry explaining that Pebble has joined Stonehome.
+
+For compatibility with an older API process, `src/api.ts` also attaches the selected request destination to the parsed result. This ensures Crystal Cave is recognized even if the server response predates the destination field.
+
+### Unique production
+
+Pebble is a member of `ResidentSpecies = "dwarf" | "mole-beast"` in `src/types.ts`.
+
+The shared `Resident` type is used for both dwarves and the mole-beast. Colony, expedition, crafting and roster code operate on residents rather than assuming every character is a dwarf.
+
+Species-specific production is implemented in `src/simulation.ts`:
+
+- Dwarf miners produce 2 stone per day.
+- Pebble produces 5 stone per day while assigned to mining.
+- An equipped tool adds 1 stone to compatible working output.
+- Hungry behavior uses the existing deterministic 50-percent production rule.
+- Travelling or crafting residents produce no local resources.
+- Every resident consumes 1 food per day.
+
+The `residentOutput(resident, hungry)` helper is shared by daily simulation and the Colony page's daily-output preview. This prevents the preview and actual day from disagreeing.
+
+Pebble is limited to `mining` or `null` assignments. The roster only offers those choices for the mole-beast, and `assignDwarf()` repeats the restriction against the latest provider state.
+
+### Unique crafting capability
+
+Crafting recipes now include `eligibleSpecies` in `src/types.ts`.
+
+The rules in `src/pages/ForgePage.tsx` are:
+
+| Recipe | Eligible species |
+| --- | --- |
+| Iron Tool | Dwarves |
+| Sword | Dwarves |
+| Crystal Pick | Mole-beast |
+
+Crystal Pick costs 6 stone, takes 3 days, and rewards 1 tool.
+
+The Smith dropdown only lists residents eligible for that recipe. `craftTool()` repeats `canCraft()` against the latest state, preventing stale UI or fast-click behavior from starting an invalid task.
+
+A crafting resident:
+
+- becomes `crafting`,
+- loses its local assignment,
+- cannot be assigned work or sent on an expedition,
+- remains visible in the crafting queue,
+- consumes 1 food per day,
+- becomes `idle` when the task finishes.
+
+### Visible species differences
+
+The roster in `src/components/DwarfRoster.tsx` now shows:
+
+- a distinct species label: `MOLE-BEAST`,
+- Pebble's Crystal Delver title,
+- Pebble's mole icon,
+- `Crystal Delving: +5 stone/day while mining`,
+- normal status, availability, assignment and tool controls.
+
+The Colony page's Mining card communicates the difference explicitly:
+
+- Dwarfs: +2 stone/day
+- Mole-beasts: +5 stone/day
+
+The Forge page only shows eligible Smith choices for each recipe.
+
+### General resident rules
+
+The mole-beast uses the same systems as dwarves:
+
+- `isAvailable()` controls assignments, forging and expeditions,
+- `advanceDay()` applies food consumption and hunger,
+- tools use the existing inventory and equipped flags,
+- crafting tasks identify residents by their ID,
+- travelling residents return by `returnHome()`/`failExpedition()`,
+- browser saves contain resident state.
+
+### Persistence
+
+The save format was updated to version 2 in `src/state/colonySave.ts`.
+
+The save validator now checks:
+
+- `crystalCaveResidentJoined`,
+- resident species,
+- resident names and IDs,
+- supported resident statuses,
+- the invariant that joined is true if and only if exactly one mole-beast is in the resident array.
+
+An old, malformed or inconsistent save falls back to `initialState`.
+
+When Pebble is restored:
+
+- the unlocked resident remains in the colony,
+- assignment and tool state remain restored,
+- crafting tasks remain resumable,
+- expedition state is handled by the existing interrupted-expedition policy.
+
+### Tests
+
+The focused simulation tests cover:
+
+- Pebble producing 5 stone while mining,
+- Crystal Cave success adding exactly one mole-beast,
+- duplicate Crystal Cave completion not duplicating Pebble,
+- Old Mine success not unlocking Pebble,
+- dwarf-only forging recipes,
+- the mole-beast-only Crystal Pick recipe.
+

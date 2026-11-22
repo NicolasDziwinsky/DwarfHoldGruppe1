@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { Chronicle } from "../components/Chronicle";
 import { DwarfRoster } from "../components/DwarfRoster";
-import { isAvailable, jobLabel, production } from "../simulation";
+import {
+  isAvailable,
+  jobLabel,
+  production,
+  residentOutput,
+} from "../simulation";
 import { useColony } from "../state/ColonyContext";
 import type { ResourceKey } from "../types";
 
@@ -20,7 +25,7 @@ export function ColonyPage() {
   const dailyOutput = colony.dwarves.reduce<Record<ResourceKey, number>>(
     (total, dwarf) => {
       if (dwarf.assignment && dwarf.status === "working") {
-        const output = production[dwarf.assignment];
+        const output = residentOutput(dwarf);
         Object.entries(output).forEach(([resource, amount]) => {
           total[resource as ResourceKey] += amount ?? 0;
         });
@@ -80,7 +85,14 @@ export function ColonyPage() {
                   Expeditions are in progress until their result reaches the hold.
                   Refreshing during travel returns the scout home empty-handed.
                 </p>
-                <strong>+{Object.values(production[job])[0]} / day</strong>
+                {job === "mining" ? (
+                  <strong>
+                    Dwarf +{Object.values(production.mining)[0]} · Mole-beast
+                    +5 / day
+                  </strong>
+                ) : (
+                  <strong>+{Object.values(production[job])[0]} / day</strong>
+                )}
               </article>
             ))}
           </div>

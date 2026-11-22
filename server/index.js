@@ -34,7 +34,7 @@ app.post("/api/expeditions", (req, res) => {
     
     expeditionNumber += 1;
     
-    res.json({ expeditionId: `exp-${expeditionNumber}`, status: "completed", ...outcome });
+    res.json({ expeditionId: `exp-${expeditionNumber}`, destination, status: "completed", ...outcome });
   }, latency);
 });
 

@@ -27,5 +27,10 @@ export async function beginExpedition(
   if (!response.ok || !body) {
     throw new Error(body?.error ?? `Expedition failed (${response.status})`);
   }
-  return body;
+  return {
+    ...body,
+    // The browser knows which destination was requested. Keep this field
+    // authoritative even if an older API process omits it from the response.
+    destination,
+  };
 }

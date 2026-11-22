@@ -3,29 +3,34 @@ export type DwarfStatus = "idle" | "working" | "crafting" | "expedition";
 export interface Resources { wood: number; stone: number; food: number; tools: number; swords: number; }
 export type ResourceKey = keyof Resources;
 
-export interface Dwarf { 
+export type ResidentSpecies = "dwarf" | "mole-beast";
+
+export interface Resident {
     id: string;
-     name: string; 
-     title: string; 
-     icon: string; 
-     assignment: JobType; 
-     status: DwarfStatus; 
-     specialty?: Exclude<JobType, null> 
-     toolEquipped?: boolean
-     travellingTo?: string
+    name: string;
+    title: string;
+    icon: string;
+    species: ResidentSpecies;
+    assignment: JobType;
+    status: DwarfStatus;
+    specialty?: Exclude<JobType, null>;
+    toolEquipped?: boolean;
+    travellingTo?: string;
 }
 
 export interface ColonyState { 
     day: number; 
     resources: Resources; 
-    dwarves: Dwarf[] 
+    dwarves: Resident[] 
     hungry: boolean;
     craftingTasks: CraftingTask[];
     completedExpeditions: string[];
+    crystalCaveResidentJoined: boolean;
 }
 
 export interface ExpeditionResult { 
-    expeditionId: string; 
+    expeditionId: string;
+    destination: string; 
     status: "completed"; 
     rewards: Partial<Resources>; 
     message: string 
@@ -44,6 +49,7 @@ export interface CraftingRecipe {
     requiredResources: Partial<Resources>;
     rewards: Partial<Resources>; 
     daysToComplete: number;
+    eligibleSpecies: ResidentSpecies[];
 }
 
 export interface CraftingTask {

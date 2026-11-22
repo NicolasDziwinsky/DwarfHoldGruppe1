@@ -11,6 +11,7 @@ const ironToolRecipe: CraftingRecipe = {
   rewards: { tools: 1 },
   daysToComplete: 5,
   icon: "⚒️",
+  eligibleSpecies: ["dwarf"],
 };
 
 const swordRecipe: CraftingRecipe = {
@@ -19,10 +20,24 @@ const swordRecipe: CraftingRecipe = {
   rewards: { swords: 1 },
   daysToComplete: 5,
   icon: "⚔️",
+  eligibleSpecies: ["dwarf"],
+};
+
+const crystalPickRecipe: CraftingRecipe = {
+  name: "Crystal Pick",
+  requiredResources: { stone: 6 },
+  rewards: { tools: 1 },
+  daysToComplete: 3,
+  icon: "⛏️",
+  eligibleSpecies: ["mole-beast"],
 };
 
 // Add further recipes here; each one gets its own card.
-const recipes: CraftingRecipe[] = [ironToolRecipe, swordRecipe];
+const recipes: CraftingRecipe[] = [
+  ironToolRecipe,
+  swordRecipe,
+  crystalPickRecipe,
+];
 
 /** Renders e.g. "3 🪵 + 2 🪨" for whatever resources the list contains. */
 function ResourceList({ amounts }: { amounts: Partial<Resources> }) {
@@ -37,7 +52,10 @@ function ResourceList({ amounts }: { amounts: Partial<Resources> }) {
 
 function RecipeCard({ recipe }: { recipe: CraftingRecipe }) {
   const { colony, craftTool } = useColony();
-  const availableDwarves = colony.dwarves.filter(isAvailable);
+  const availableDwarves = colony.dwarves.filter(
+    (resident) => isAvailable(resident) &&
+      recipe.eligibleSpecies.includes(resident.species),
+  );
   const [crafterId, setCrafterId] = useState("");
 
   // Fall back to the first free dwarf if the chosen one became busy.

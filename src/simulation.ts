@@ -3,7 +3,7 @@ import type {
   ExpeditionResult,
   CraftingRecipe,
   CraftingTask,
-  Dwarf,
+  Resident,
   JobType,
   ResourceKey,
   Resources,
@@ -13,27 +13,67 @@ export const production: Record<Exclude<JobType, null>, Partial<Resources>> = {
   woodcutting: { wood: 3 }, mining: { stone: 2 }, farming: { food: 4 },
 };
 
+export const MOLE_BEAST_MINING_OUTPUT = 5;
+
+export const MOLE_BEAST_RESIDENT: Resident = {
+  id: "mole-beast-1",
+  name: "Pebble",
+  title: "Crystal Delver",
+  icon: "🦦",
+  species: "mole-beast",
+  assignment: null,
+  status: "idle",
+  specialty: "mining",
+};
+
+export function residentOutput(
+  resident: Resident,
+  hungry = false,
+): Partial<Resources> {
+  if (!resident.assignment || resident.status !== "working") return {};
+
+  const dwarfOutput = production[resident.assignment];
+  let output = dwarfOutput;
+
+  if (
+    resident.species === "mole-beast" &&
+    resident.assignment === "mining"
+  ) {
+    output = { stone: MOLE_BEAST_MINING_OUTPUT };
+  }
+
+  const toolBonus = resident.toolEquipped ? 1 : 0;
+  const result: Partial<Resources> = {};
+
+  Object.entries(output).forEach(([resource, amount]) => {
+    const base = amount ?? 0;
+    result[resource as ResourceKey] =
+      (hungry ? Math.floor(base * 0.5) : base) + toolBonus;
+  });
+
+  return result;
+}
+
+export function canCraft(
+  resident: Resident,
+  recipe: CraftingRecipe,
+): boolean {
+  return (
+    isAvailable(resident) &&
+    recipe.eligibleSpecies.includes(resident.species)
+  );
+}
+
 export function advanceDay(state: ColonyState): ColonyState {
   const resources = { ...state.resources };
 
-  // Each dwarf produces resources based on their assignment
-  state.dwarves.forEach((dwarf) => {
-    // Only dwarves actually at their job produce (not crafting, not travelling)
-    if (!dwarf.assignment || dwarf.status !== "working") return;
-
-    const output = production[dwarf.assignment];
-    const toolBonus = dwarf.toolEquipped ? 1 : 0;
-
-    if (state.hungry) {
-      Object.entries(output).forEach(([resource, amount]) => {
-      resources[resource as keyof Resources] += (Math.floor(amount*0.5) ?? 0) + toolBonus;
-    });
-    } else {
-    Object.entries(output).forEach(([resource, amount]) => {
-      resources[resource as keyof Resources] += (amount ?? 0) + toolBonus;
-    });
-
-  }});
+  state.dwarves.forEach((resident) => {
+    Object.entries(residentOutput(resident, state.hungry)).forEach(
+      ([resource, amount]) => {
+        resources[resource as ResourceKey] += amount ?? 0;
+      },
+    );
+  });
 
   
 
@@ -81,7 +121,7 @@ export function advanceDay(state: ColonyState): ColonyState {
 }
 
 /** A dwarf can take on new work only while idle or on a local job. */
-export const isAvailable = (dwarf: Dwarf) =>
+export const isAvailable = (dwarf: Resident) =>
   dwarf.status === "idle" || dwarf.status === "working";
 
 /** Resources the stores are short of for this recipe (empty = affordable). */
@@ -116,7 +156,7 @@ export function startExpedition(
 }
 
 /** Brings a travelling dwarf home, back to their job (or idle). */
-function returnHome(state: ColonyState, dwarfId: string): Dwarf[] {
+function returnHome(state: ColonyState, dwarfId: string): Resident[] {
   return state.dwarves.map((item) =>
     item.id === dwarfId && item.status === "expedition"
       ? {
@@ -142,6 +182,8 @@ export function completeExpedition(
 
   const alreadyPaid = state.completedExpeditions.includes(result.expeditionId);
   const resources = { ...state.resources };
+  let dwarves = returnHome(state, dwarfId);
+  let crystalCaveResidentJoined = state.crystalCaveResidentJoined;
 
   if (!alreadyPaid) {
     Object.entries(result.rewards ?? {}).forEach(([key, amount]) => {
@@ -152,10 +194,20 @@ export function completeExpedition(
     });
   }
 
+  if (
+    result.destination === "crystal-cave" &&
+    !crystalCaveResidentJoined &&
+    !dwarves.some((resident) => resident.species === "mole-beast")
+  ) {
+    dwarves = [...dwarves, { ...MOLE_BEAST_RESIDENT }];
+    crystalCaveResidentJoined = true;
+  }
+
   return {
     ...state,
     resources,
-    dwarves: returnHome(state, dwarfId),
+    dwarves,
+    crystalCaveResidentJoined,
     completedExpeditions: alreadyPaid
       ? state.completedExpeditions
       : [...state.completedExpeditions, result.expeditionId],

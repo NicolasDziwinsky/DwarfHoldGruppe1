@@ -1,5 +1,5 @@
 import { destinationLabel, jobLabel } from "../simulation";
-import type { CraftingTask, Dwarf, JobType } from "../types";
+import type { CraftingTask, Resident, JobType } from "../types";
 
 const jobs: Exclude<JobType, null>[] = [
   "woodcutting",
@@ -8,7 +8,7 @@ const jobs: Exclude<JobType, null>[] = [
 ];
 
 interface Props {
-  dwarves: Dwarf[];
+  dwarves: Resident[];
   hungry: boolean;
   toolsAvailable: number;
   craftingTasks: CraftingTask[];
@@ -62,8 +62,13 @@ export function DwarfRoster({
               <div className="dwarf-details">
                 <h3>{dwarf.name}</h3>
                 <p>
-                  {dwarf.title} · {specialty}
+                  {dwarf.title} · {dwarf.species === "mole-beast"
+                    ? "MOLE-BEAST"
+                    : "DWARF"} · {specialty}
                 </p>
+                {dwarf.species === "mole-beast" && (
+                  <p>Crystal Delving: +5 stone/day while mining.</p>
+                )}
 
                 <select
                   value={dwarf.assignment ?? ""}
@@ -76,7 +81,10 @@ export function DwarfRoster({
                   }
                 >
                   <option value="">Unassigned</option>
-                  {jobs.map((job) => (
+                  {(dwarf.species === "mole-beast"
+                    ? (["mining"] as const)
+                    : jobs
+                  ).map((job) => (
                     <option value={job} key={job}>
                       {jobLabel(job)}
                     </option>

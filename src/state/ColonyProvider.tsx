@@ -9,6 +9,7 @@ import {
   isAvailable,
   jobLabel,
   missingResources,
+  canCraft,
 } from "../simulation";
 import type {
   Activity,
@@ -44,6 +45,7 @@ const initialState: ColonyState = {
       name: "Bromli Copperkeg",
       title: "Hold Warden",
       icon: "🧔🏻",
+      species: "dwarf",
       assignment: "mining",
       status: "working",
       specialty: "mining",
@@ -53,6 +55,7 @@ const initialState: ColonyState = {
       name: "Yrsa Flintbraid",
       title: "Trail Scout",
       icon: "🧔🏼‍♀️",
+      species: "dwarf",
       assignment: "woodcutting",
       status: "working",
       specialty: "woodcutting",
@@ -62,21 +65,15 @@ const initialState: ColonyState = {
       name: "Dori Ashmantle",
       title: "Stone Singer",
       icon: "🧔🏽",
+      species: "dwarf",
       assignment: null,
       status: "idle",
-    },
-    {
-      id: "dwarf-4",
-      name: "SKELETON",
-      title: "GRRRRR",
-      icon: "💀",
-      assignment: null,
-      status: "idle",
-    },
+    }
   ],
   hungry: false,
   craftingTasks: [],
   completedExpeditions: [],
+  crystalCaveResidentJoined: false,
 };
 
 const initialActivities: Activity[] = [
@@ -258,6 +255,11 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
   function assignDwarf(id: string, assignment: JobType) {
     const dwarf = colony.dwarves.find((item) => item.id === id);
     if (!dwarf || !isAvailable(dwarf)) return;
+    if (
+      dwarf.species === "mole-beast" &&
+      assignment !== null &&
+      assignment !== "mining"
+    ) return;
 
     setColony((current) => ({
       ...current,
@@ -306,6 +308,11 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (!canCraft(dwarf, recipe)) {
+      warn(`${dwarf.name} cannot forge ${recipe.name}.`);
+      return;
+    }
+
     const missing = missingResources(colony.resources, recipe);
     if (missing.length > 0) {
       warn(
@@ -319,6 +326,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
       // two tasks or spend resources that are no longer there.
       const target = current.dwarves.find((item) => item.id === dwarfId);
       if (!target || !isAvailable(target)) return current;
+      if (!canCraft(target, recipe)) return current;
       if (missingResources(current.resources, recipe).length > 0) {
         return current;
       }
@@ -427,6 +435,13 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
       const result = await beginExpedition(dwarfId, destination);
       setColony((current) => completeExpedition(current, dwarfId, result));
       log(result.message, "good");
+      if (
+        result.destination === "crystal-cave" &&
+        !colony.crystalCaveResidentJoined &&
+        !colony.dwarves.some((resident) => resident.species === "mole-beast")
+      ) {
+        log("Pebble the mole-beast joined Stonehome after the Crystal Cave expedition.", "good");
+      }
     } catch (error) {
       // Always bring the dwarf home on failure; no rewards are paid.
       setColony((current) => failExpedition(current, dwarfId));
