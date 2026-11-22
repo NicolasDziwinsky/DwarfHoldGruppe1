@@ -4,6 +4,7 @@ import {
   canCraft,
   completeExpedition,
   failExpedition,
+  hauntedMansionAttackMessage,
   startExpedition,
 } from "./simulation";
 import type { ColonyState } from "./types";
@@ -102,7 +103,10 @@ describe("expeditions", () => {
   });
 
   it("brings the dwarf home without rewards on failure", () => {
-    const failed = failExpedition(startExpedition(home, "d1", "old-mine"), "d1");
+    const failed = failExpedition(
+      startExpedition(home, "d1", "haunted-mansion"),
+      "d1",
+    );
     expect(failed.dwarves[0].status).toBe("working");
     expect(failed.resources).toEqual(home.resources);
   });
@@ -182,6 +186,96 @@ describe("expeditions", () => {
     expect(joined.dwarves.filter((resident) =>
       resident.species === "mole-beast",
     )).toHaveLength(1);
+  });
+
+  it("rewards the Haunted Mansion and defends with at least three swords", () => {
+    const armed = {
+      ...home,
+      resources: { wood: 10, stone: 8, food: 6, tools: 0, swords: 3 },
+    };
+    const mansionResult = {
+      expeditionId: "exp-mansion-armed",
+      destination: "haunted-mansion",
+      status: "completed" as const,
+      rewards: {},
+      message: "",
+    };
+
+    const defended = completeExpedition(
+      startExpedition(armed, "d1", "haunted-mansion"),
+      "d1",
+      mansionResult,
+    );
+
+    expect(defended.resources).toEqual({
+      wood: 60,
+      stone: 58,
+      food: 6,
+      tools: 0,
+      swords: 2,
+    });
+    expect(hauntedMansionAttackMessage(3)).toContain(
+      "successfully defended itself",
+    );
+  });
+
+  it("loots half of the post-reward stores and consumes one sword below the threshold", () => {
+    const lightlyArmed = {
+      ...home,
+      resources: { wood: 10, stone: 8, food: 6, tools: 0, swords: 2 },
+    };
+    const mansionResult = {
+      expeditionId: "exp-mansion-unarmed",
+      destination: "haunted-mansion",
+      status: "completed" as const,
+      rewards: {},
+      message: "",
+    };
+
+    const raided = completeExpedition(
+      startExpedition(lightlyArmed, "d1", "haunted-mansion"),
+      "d1",
+      mansionResult,
+    );
+
+    expect(raided.resources).toEqual({
+      wood: 30,
+      stone: 29,
+      food: 3,
+      tools: 0,
+      swords: 1,
+    });
+    expect(hauntedMansionAttackMessage(2)).toContain("looted half");
+
+    const repeated = completeExpedition(
+      startExpedition(raided, "d1", "haunted-mansion"),
+      "d1",
+      mansionResult,
+    );
+    expect(repeated.resources).toEqual(raided.resources);
+  });
+
+  it("does not make the sword count negative when an unarmed colony is attacked", () => {
+    const resultWithoutSwords = {
+      expeditionId: "exp-mansion-empty",
+      destination: "haunted-mansion",
+      status: "completed" as const,
+      rewards: {},
+      message: "",
+    };
+    const emptyStores = {
+      ...home,
+      resources: { wood: 0, stone: 0, food: 0, tools: 0, swords: 0 },
+    };
+    const attacked = completeExpedition(
+      startExpedition(emptyStores, "d1", "haunted-mansion"),
+      "d1",
+      resultWithoutSwords,
+    );
+
+    expect(attacked.resources.swords).toBe(0);
+    expect(attacked.resources).toMatchObject({ wood: 25, stone: 25, food: 0 });
+    expect(hauntedMansionAttackMessage(0)).toContain("already empty");
   });
 });
 

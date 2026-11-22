@@ -10,6 +10,8 @@ import {
   jobLabel,
   missingResources,
   canCraft,
+  hauntedMansionAttackMessage,
+  HAUNTED_MANSION_WEAPON_THRESHOLD,
 } from "../simulation";
 import type {
   Activity,
@@ -177,6 +179,8 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
   const [activities, setActivities] = useState<Activity[]>(
     loadedSave.activities,
   );
+  const colonyRef = useRef(colony);
+  colonyRef.current = colony;
 
     const latestSave = useRef<ColonySave>({
     version: COLONY_SAVE_VERSION,
@@ -433,8 +437,20 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
 
     try {
       const result = await beginExpedition(dwarfId, destination);
+      const stateAtReturn = colonyRef.current;
+      const alreadyCompleted = stateAtReturn.completedExpeditions.includes(
+        result.expeditionId,
+      );
       setColony((current) => completeExpedition(current, dwarfId, result));
       log(result.message, "good");
+      if (result.destination === "haunted-mansion" && !alreadyCompleted) {
+        log(
+          hauntedMansionAttackMessage(stateAtReturn.resources.swords),
+          stateAtReturn.resources.swords >= HAUNTED_MANSION_WEAPON_THRESHOLD
+            ? "good"
+            : "warning",
+        );
+      }
       if (
         result.destination === "crystal-cave" &&
         !colony.crystalCaveResidentJoined &&

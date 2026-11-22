@@ -48,6 +48,13 @@ Your team's weapon recipe from D2 should matter during this event. If Stonehome 
 
 Your team may decide whether defense consumes or preserves the weapons, but the chosen rule must be communicated and applied consistently. Failed expedition requests must not trigger the attack.
 
+**Stonehome's D7 decision:** The Haunted Mansion expedition grants 50 timber
+and 50 stone before the hostile force attacks. At least 3 swords defends the
+colony; below 3, attackers take half (rounded down) of stored timber, stone,
+and rations. Every attack consumes one available sword, including a successful
+defense. An attack cannot make the sword count negative. The chronicle reports
+the defense or raid outcome, and failed expeditions do not trigger it.
+
 ## Qualitative requirements and team decisions
 
 In addition to the functional requirements, your team must define a small set of qualitative goals for your solution. Choose goals that are relevant to your implementation and the way you expect the application to be used.

@@ -575,3 +575,42 @@ The focused simulation tests cover:
 - dwarf-only forging recipes,
 - the mole-beast-only Crystal Pick recipe.
 
+# D7
+
+## Haunted Mansion and colony defense
+
+The additional destination is **Haunted Mansion** (`haunted-mansion`). A successful expedition grants 50 timber (`wood`) and 50 stone, then causes the hostile force following the scout to attack Stonehome.
+
+### Rewards and attack resolution
+
+The API outcome in `server/index.js` supplies the Haunted Mansion reward and narrative. `completeExpedition()` in `src/simulation.ts` applies the fixed 50 timber and 50 stone reward before resolving the attack. This destination-specific reward is applied only when the expedition succeeds and its expedition ID has not already been paid.
+
+The defense threshold is `HAUNTED_MANSION_WEAPON_THRESHOLD` (3 swords):
+
+| Swords when the attack is resolved | Outcome |
+| --- | --- |
+| 3 or more | Stonehome defends itself; no timber, stone, or rations are looted. |
+| Fewer than 3 | Attackers take half of the stored timber, stone, and rations, rounded down for each resource. |
+
+Every successful attack consumes one sword. When the store has no swords, the count remains at zero rather than becoming negative. The Chronicle reports either the successful defense or the raid, including the sword cost or empty sword store.
+
+### Failure and duplicate protection
+
+Only `completeExpedition()` resolves the attack. A failed or timed-out request uses `failExpedition()`, which returns the dwarf home without paying rewards or triggering the attack. `completedExpeditions` prevents a repeated result ID from paying rewards or resolving another attack.
+
+### UI and tests
+
+The Expedition panel offers Haunted Mansion and explains its reward, defense threshold, raid, and sword cost. The API success message notes that a hostile force followed the scout; the provider adds the attack outcome to the Chronicle.
+
+The focused tests in `src/simulation.test.ts` cover:
+
+- the 50 timber and 50 stone reward and defense at the 3-sword threshold,
+- a below-threshold raid using post-reward stores and consuming one sword,
+- an empty sword store remaining non-negative,
+- duplicate result IDs not paying or attacking again,
+- a failed Haunted Mansion expedition leaving resources unchanged.
+
+### Running API processes
+
+The API reads `server/index.js` when Node starts and does not automatically reload it when that file changes. If the running API returns *"That destination is not on the hold map"* despite the route being present in source, restart `npm run dev` so the API process loads the updated destination table.
+

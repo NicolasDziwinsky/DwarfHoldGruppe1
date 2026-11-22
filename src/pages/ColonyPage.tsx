@@ -144,6 +144,7 @@ export function ColonyPage() {
             >
               <option value="crystal-cave">Crystal Cave</option>
               <option value="old-mine">The Old Mine</option>
+              <option value="haunted-mansion">Haunted Mansion</option>
               <option value="blocked-pass">Blocked Pass</option>
             </select>
           </label>
@@ -163,7 +164,10 @@ export function ColonyPage() {
             The scout is away until the request returns and produces nothing
             meanwhile. Tools travel with the dwarf and cannot be returned until
             they are home. A failed or timed-out trip brings the dwarf back
-            with no reward.
+            with no reward. The Haunted Mansion yields 50 timber and 50 stone,
+            but its hostile force raids half of stored timber, stone, and
+            rations unless Stonehome has at least 3 swords. Any attack costs
+            one sword if one is available.
           </p>
         </section>
 

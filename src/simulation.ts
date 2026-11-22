@@ -14,6 +14,7 @@ export const production: Record<Exclude<JobType, null>, Partial<Resources>> = {
 };
 
 export const MOLE_BEAST_MINING_OUTPUT = 5;
+export const HAUNTED_MANSION_WEAPON_THRESHOLD = 3;
 
 export const MOLE_BEAST_RESIDENT: Resident = {
   id: "mole-beast-1",
@@ -186,12 +187,25 @@ export function completeExpedition(
   let crystalCaveResidentJoined = state.crystalCaveResidentJoined;
 
   if (!alreadyPaid) {
-    Object.entries(result.rewards ?? {}).forEach(([key, amount]) => {
+    const rewards =
+      result.destination === "haunted-mansion"
+        ? { wood: 50, stone: 50 }
+        : result.rewards ?? {};
+    Object.entries(rewards).forEach(([key, amount]) => {
       // Ignore anything that is not a known resource or a whole number >= 0
       if (key in resources && Number.isInteger(amount) && amount >= 0) {
         resources[key as ResourceKey] += amount;
       }
     });
+
+    if (result.destination === "haunted-mansion") {
+      if (resources.swords < HAUNTED_MANSION_WEAPON_THRESHOLD) {
+        resources.wood -= Math.floor(resources.wood / 2);
+        resources.stone -= Math.floor(resources.stone / 2);
+        resources.food -= Math.floor(resources.food / 2);
+      }
+      resources.swords = Math.max(0, resources.swords - 1);
+    }
   }
 
   if (
@@ -224,6 +238,16 @@ export function failExpedition(
 
 export const destinationLabel = (destination: string) =>
   destination.replaceAll("-", " ");
+
+export function hauntedMansionAttackMessage(swords: number): string {
+  if (swords >= HAUNTED_MANSION_WEAPON_THRESHOLD) {
+    return "Stonehome successfully defended itself against the hostile force. One sword was lost.";
+  }
+
+  return swords > 0
+    ? "The hostile force looted half of Stonehome's stored timber, stone, and rations, and took one sword."
+    : "The hostile force looted half of Stonehome's stored timber, stone, and rations. The sword stores were already empty.";
+}
 
 export const jobLabel = (job: JobType) => job ? ({ 
   woodcutting: "Woodcutting", 
