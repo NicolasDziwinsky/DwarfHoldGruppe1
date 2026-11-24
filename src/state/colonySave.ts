@@ -1,13 +1,14 @@
 import type { Activity, ColonyState } from "../types";
 
 export const COLONY_SAVE_KEY = "dwarfhold-save";
-export const COLONY_SAVE_VERSION = 2;
+export const COLONY_SAVE_VERSION = 3;
 
 export interface ColonySave {
   version: typeof COLONY_SAVE_VERSION;
   savedAt: string;
   colony: ColonyState;
   paused: boolean;
+  spedUp: boolean;
   activities: Activity[];
 }
 

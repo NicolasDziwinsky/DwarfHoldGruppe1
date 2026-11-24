@@ -3,7 +3,7 @@ import { ResourceBar } from "../components/ResourceBar";
 import { useColony } from "../state/ColonyContext";
 
 export function Layout() {
-  const { colony, paused, togglePaused } = useColony();
+  const { colony, paused, spedUp, togglePaused, toggleSpeedUp } = useColony();
 
   return (
     <main>
@@ -30,7 +30,11 @@ export function Layout() {
           <button onClick={togglePaused}>
             {paused ? "Wake the hold" : "Pause"}
           </button>
+          <button onClick={toggleSpeedUp}>
+            {spedUp ? "Slow down" : "Speed up"}
+          </button>
         </div>
+        
       </header>
 
       <nav className="main-nav" aria-label="Colony navigation">

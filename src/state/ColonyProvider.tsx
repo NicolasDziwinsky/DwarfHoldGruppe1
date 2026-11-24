@@ -93,6 +93,7 @@ function loadInitialSave(): ColonySave {
     savedAt: new Date().toISOString(),
     colony: initialState,
     paused: false,
+    spedUp: false,
     activities: initialActivities,
   };
 
@@ -105,6 +106,7 @@ function loadInitialSave(): ColonySave {
     saved.version !== COLONY_SAVE_VERSION ||
     !isColonyState(saved.colony) ||
     typeof saved.paused !== "boolean" ||
+    typeof saved.spedUp !== "boolean" ||
     !Array.isArray(saved.activities)
   ) {
     return fallback;
@@ -124,6 +126,7 @@ function loadInitialSave(): ColonySave {
           : new Date().toISOString(),
       colony,
       paused: saved.paused,
+      spedUp: saved.spedUp,
       activities: saved.activities as Activity[],
     };
   }
@@ -158,6 +161,7 @@ function loadInitialSave(): ColonySave {
         : new Date().toISOString(),
     colony: recoveredColony,
     paused: saved.paused,
+    spedUp: saved.spedUp,
     activities: [
       ...recoveryMessages,
       ...(saved.activities as Activity[]),
@@ -176,6 +180,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     loadedSave.colony,
   );
   const [paused, setPaused] = useState(loadedSave.paused);
+  const [spedUp, setSpeedUp] = useState(loadedSave.spedUp);
   const [activities, setActivities] = useState<Activity[]>(
     loadedSave.activities,
   );
@@ -187,6 +192,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     savedAt: loadedSave.savedAt,
     colony,
     paused,
+    spedUp: loadedSave.spedUp,
     activities,
   });
 
@@ -196,12 +202,16 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
       savedAt: new Date().toISOString(),
       colony,
       paused,
+      spedUp: false,
       activities,
     };
+    if(!spedUp) {
+      snapshot.spedUp = false;
+    }
 
     latestSave.current = snapshot;
     saveColony(snapshot);
-  }, [colony, paused, activities]);
+  }, [colony, paused, activities, spedUp]);
 
   useEffect(() => {
     const saveBeforeLeaving = () => {
@@ -215,7 +225,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("pagehide", saveBeforeLeaving);
       window.removeEventListener("beforeunload", saveBeforeLeaving);
     };
-  }, []);
+  }, [colony, paused, activities, spedUp]);
 
 
   useEffect(() => {
@@ -223,11 +233,11 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
 
     const timer = window.setInterval(
       () => setColony((current) => advanceDay(current)),
-      4000,
+      spedUp ? 4000 : 8000,
     );
 
     return () => window.clearInterval(timer);
-  }, [paused]);
+  }, [paused, spedUp]);
 
   // Log finished crafting work. A task only leaves the list when
   // advanceDay completes it, so "was there before, gone now" = finished.
@@ -476,9 +486,11 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
   const value: ColonyContextValue = {
     colony,
     paused,
+    spedUp,
     activities,
     expeditionPending,
     togglePaused: () => setPaused((value) => !value),
+    toggleSpeedUp: () => setSpeedUp((value) => !value),
     assignDwarf,
     craftTool,
     toggleTool,

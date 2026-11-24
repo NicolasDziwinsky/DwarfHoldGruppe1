@@ -9,9 +9,11 @@ import type {
 export interface ColonyContextValue {
   colony: ColonyState;
   paused: boolean;
+  spedUp: boolean;
   activities: Activity[];
   expeditionPending: boolean;
   togglePaused: () => void;
+  toggleSpeedUp: () => void;
   assignDwarf: (id: string, assignment: JobType) => void;
   craftTool: (dwarfId: string, recipe: CraftingRecipe) => void;
   toggleTool: (id: string) => void;
