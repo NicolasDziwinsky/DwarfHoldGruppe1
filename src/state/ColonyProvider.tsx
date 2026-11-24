@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { beginExpedition } from "../api";
 import {
   advanceDay,
@@ -31,6 +31,10 @@ import {
   isRecord,
   type ColonySave,
 } from "./colonySave";
+
+const NORMAL_DAY_MS = 8000;
+const FAST_DAY_MS = 4000;
+const CLOCK_TICK_MS = 50;
 
 const initialState: ColonyState = {
   day: 12,
@@ -184,6 +188,9 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
   const [activities, setActivities] = useState<Activity[]>(
     loadedSave.activities,
   );
+  const dayDurationMs = spedUp ? FAST_DAY_MS : NORMAL_DAY_MS;
+  const dayProgress = useRef(0);
+  const getDayProgress = useCallback(() => dayProgress.current, []);
   const colonyRef = useRef(colony);
   colonyRef.current = colony;
 
@@ -229,13 +236,24 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (paused) return;
 
-    const timer = window.setInterval(
-      () => setColony((current) => advanceDay(current)),
-      spedUp ? 4000 : 8000,
-    );
+    // Progress lives in a ref, so pausing or changing speed keeps the part
+    // of the day that has already passed.
+    let last = performance.now();
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      dayProgress.current += (now - last) / dayDurationMs;
+      last = now;
+
+      if (dayProgress.current >= 1) {
+        // At most one day per tick: a throttled background tab must not
+        // skip through several days at once.
+        dayProgress.current %= 1;
+        setColony((current) => advanceDay(current));
+      }
+    }, CLOCK_TICK_MS);
 
     return () => window.clearInterval(timer);
-  }, [paused, spedUp]);
+  }, [paused, dayDurationMs]);
 
   // Log finished crafting work. A task only leaves the list when
   // advanceDay completes it, so "was there before, gone now" = finished.
@@ -489,6 +507,8 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     expeditionPending,
     togglePaused: () => setPaused((value) => !value),
     toggleSpeedUp: () => setSpeedUp((value) => !value),
+    dayDurationMs,
+    getDayProgress,
     assignDwarf,
     craftTool,
     toggleTool,

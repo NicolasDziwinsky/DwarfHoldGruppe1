@@ -614,3 +614,70 @@ The focused tests in `src/simulation.test.ts` cover:
 
 The API reads `server/index.js` when Node starts and does not automatically reload it when that file changes. If the running API returns *"That destination is not on the hold map"* despite the route being present in source, restart `npm run dev` so the API process loads the updated destination table.
 
+
+
+# UI IMPROVEMENTS
+
+## Day progress bar
+
+A bar above the resource bar fills up as the current day passes. It is shown on both the Colony and Forge pages.
+
+- File: `src/components/DayProgress.tsx`, rendered by `src/pages/Layout.tsx`.
+- While the game is paused, the bar freezes, turns grey and its label changes from **NEXT DAY** to **PAUSED**.
+- The bar has `role="progressbar"` and updates `aria-valuenow`, so assistive technology can read it.
+
+### Day timer
+
+The timer is in `src/state/ColonyProvider.tsx`:
+
+1. Every 50 ms (`CLOCK_TICK_MS`), the elapsed time divided by the day length is added to the `dayProgress` ref (0 to 1).
+2. When the progress reaches 1, `advanceDay` runs and the progress starts over, keeping any remainder.
+3. At most one day passes per tick. A throttled background tab therefore cannot skip several days at once.
+
+Pausing or changing speed keeps the progress of the current day. Before this change, pausing restarted the day.
+
+### Decision: no React state for the progress
+
+The progress is stored in a ref and exposed as `getDayProgress()`. `DayProgress` reads it with `requestAnimationFrame` and writes it directly to the DOM.
+
+**Why:** if the progress were context state, every component using the colony context would re-render on each update.
+
+**Trade-off:** the bar bypasses React's normal rendering for this one element.
+
+## Speed button
+
+A button beside the progress bar switches between two speeds:
+
+| Speed | Day length | Button |
+| --- | --- | --- |
+| Normal (`NORMAL_DAY_MS`) | 8 seconds | **▶ 1× · 8s / day** |
+| Fast (`FAST_DAY_MS`) | 4 seconds | **⏩ 2× · 4s / day** (filled amber) |
+
+- `spedUp`, `dayDurationMs` and `toggleSpeedUp` are available through the colony context (`src/state/ColonyContext.ts`).
+- The footer shows the current day length instead of a fixed text.
+- Expeditions do not get faster, because they wait for a real server request. At 2×, more days can pass during a trip.
+- The speed is part of the save (`spedUp` in `ColonySave`, save version 3), so it survives a refresh. The progress of the current day is not saved, so a refresh starts with an empty bar.
+
+## Hover and click styling
+
+All styles are at the end of `src/styles.css`.
+
+| Element | Hover | Click |
+| --- | --- | --- |
+| Buttons | Brighter; Pause and the inactive speed button also get a background and border color | Darker and slightly pressed in |
+| Dropdowns | Amber border and lighter background | Brighter border and darker background |
+| Navigation links | Lighter background and text | Darker background and slightly pressed in |
+| Resource, job and dwarf cards | Lighter background | None, because they are not clickable |
+
+- Disabled controls do not react to hover or click.
+- The red hungry Rations tile keeps its warning color on hover.
+- Buttons, dropdowns and navigation links show an amber outline on keyboard focus.
+- With `prefers-reduced-motion`, the press movement and control transitions are turned off.
+
+## Verification
+
+`npm run build` and the 16 existing simulation tests pass. There are no automated tests for the timer, speed button, progress bar or styling, so these need to be checked by hand:
+
+- The bar fills in about 8 seconds at 1× and 4 seconds at 2×, and the day number goes up when it is full.
+- Pausing or changing speed mid-day does not reset the bar.
+- Hover, click and keyboard focus are visible on all controls, while disabled controls do not react.

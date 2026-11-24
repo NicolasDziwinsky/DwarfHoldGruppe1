@@ -14,6 +14,9 @@ export interface ColonyContextValue {
   expeditionPending: boolean;
   togglePaused: () => void;
   toggleSpeedUp: () => void;
+  dayDurationMs: number;
+  /** How much of the current day has passed, from 0 to 1. */
+  getDayProgress: () => number;
   assignDwarf: (id: string, assignment: JobType) => void;
   craftTool: (dwarfId: string, recipe: CraftingRecipe) => void;
   toggleTool: (id: string) => void;

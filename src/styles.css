@@ -7,3 +7,32 @@
 .tool-toggle{display:block;width:100%;margin-top:6px;background:transparent;color:#d9a34f;border:1px solid #74552d;padding:4px 6px;font:600 11px Barlow Condensed;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}.tool-toggle:hover:not(:disabled){background:#2a2117}.tool-toggle.equipped{background:#b57b32;color:#160f08;border-color:#b57b32}.tool-toggle:disabled{opacity:.45;cursor:not-allowed}
 .portrait i.crafting{background:#d4693a}.status.crafting{color:#e0924f;border-color:#a8622f}.forge-stack{display:flex;flex-direction:column;gap:15px}.forge .crafter{display:block;margin-top:10px;font:600 10px Barlow Condensed;letter-spacing:.1em;color:#9e8566}.forge .crafter select{display:block;margin-top:4px;min-width:190px;background:#100e0b;color:#d8c8ae;border:1px solid #4d3f30;padding:5px}.recipe button:disabled{opacity:.5;cursor:not-allowed}.forge-queue article{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:10px 14px;border-bottom:1px solid #352b20;font:12px Barlow Condensed;color:#c2ad8e}.forge-queue article:last-child{border:0}.forge-queue article b{font-weight:600;color:#eadfca}.forge-queue progress{grid-column:1/-1;width:100%;height:6px;accent-color:#d89b43}.forge-queue .empty{padding:14px;margin:0;font:12px Barlow Condensed;color:#806e58}
 .status.travelling{color:#d29a46;border-color:#8a6430;text-transform:capitalize}
+
+
+/* Day progress and speed */
+.day-progress{display:flex;align-items:center;gap:14px;margin-top:16px}
+.day-progress small{min-width:62px}
+.day-track{flex:1;height:10px;background:#0f0d0a;border:1px solid #4e3d2a;overflow:hidden}
+.day-fill{height:100%;background:linear-gradient(90deg,#8a5a22,#e2a84f);transform:scaleX(0);transform-origin:left}
+.day-progress.paused .day-fill{filter:grayscale(.8)}
+.speed-toggle{min-width:118px;background:transparent;color:#d9a34f;border:1px solid #74552d;padding:5px 10px;font:600 12px Barlow Condensed;letter-spacing:.06em;cursor:pointer}
+.speed-toggle.active{background:#b57b32;color:#160f08;border-color:#b57b32}
+
+/* Hover, click and keyboard focus feedback */
+button,select,.main-nav a{transition:background-color .15s,border-color .15s,color .15s,filter .15s,transform .08s}
+select:not(:disabled){cursor:pointer}
+button:disabled,select:disabled{cursor:not-allowed}
+select:disabled{opacity:.5}
+button:hover:not(:disabled){filter:brightness(1.15)}
+button:active:not(:disabled){transform:translateY(1px) scale(.98);filter:brightness(.85)}
+.day button:hover,.speed-toggle:not(.active):hover{background:#2a2117;border-color:#bb843b;color:#eadfca}
+.tool-toggle.equipped:hover:not(:disabled){background:#c98d40}
+.dwarf select:hover:not(:disabled),.expedition select:hover:not(:disabled),.forge .crafter select:hover:not(:disabled){border-color:#bb843b;background:#1d1812}
+.dwarf select:active:not(:disabled),.expedition select:active:not(:disabled),.forge .crafter select:active:not(:disabled){background:#0a0907;border-color:#e2a84f}
+.main-nav a:hover{background:#211b14}
+.main-nav a:active{background:#0f0d0a;transform:translateY(1px)}
+button:focus-visible,select:focus-visible,.main-nav a:focus-visible{outline:2px solid #e2a84f;outline-offset:2px}
+.resource-bar article,.job-grid article,.dwarf{transition:background-color .15s,border-color .15s}
+.resource-bar article:not(.hungry):hover,.dwarf:hover{background:#231c14}
+.job-grid article:hover{background:#2a2218;border-color:#74552d}
+@media(prefers-reduced-motion:reduce){button,select,.main-nav a{transition:none}button:active:not(:disabled),.main-nav a:active{transform:none}}

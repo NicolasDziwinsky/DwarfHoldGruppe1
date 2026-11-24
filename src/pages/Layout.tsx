@@ -1,9 +1,10 @@
 import { NavLink, Outlet } from "react-router";
+import { DayProgress } from "../components/DayProgress";
 import { ResourceBar } from "../components/ResourceBar";
 import { useColony } from "../state/ColonyContext";
 
 export function Layout() {
-  const { colony, paused, spedUp, togglePaused, toggleSpeedUp } = useColony();
+  const { colony, paused, dayDurationMs, togglePaused } = useColony();
 
   return (
     <main>
@@ -30,11 +31,7 @@ export function Layout() {
           <button onClick={togglePaused}>
             {paused ? "Wake the hold" : "Pause"}
           </button>
-          <button onClick={toggleSpeedUp}>
-            {spedUp ? "Slow down" : "Speed up"}
-          </button>
         </div>
-        
       </header>
 
       <nav className="main-nav" aria-label="Colony navigation">
@@ -44,12 +41,13 @@ export function Layout() {
         <NavLink to="/forge">Forge</NavLink>
       </nav>
 
+      <DayProgress />
       <ResourceBar resources={colony.resources} hungry={colony.hungry} />
       <Outlet />
 
       <footer>
         <span>🔥 Forge: burning</span>
-        <span>Next deep day in ~8 seconds</span>
+        <span>A deep day lasts {dayDurationMs / 1000} seconds</span>
         <span>{paused ? "The hold is resting" : "⚙ Simulation active"}</span>
       </footer>
     </main>
