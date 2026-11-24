@@ -202,12 +202,10 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
       savedAt: new Date().toISOString(),
       colony,
       paused,
-      spedUp: false,
+      spedUp,
       activities,
     };
-    if(!spedUp) {
-      snapshot.spedUp = false;
-    }
+    
 
     latestSave.current = snapshot;
     saveColony(snapshot);
