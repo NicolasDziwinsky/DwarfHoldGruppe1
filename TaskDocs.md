@@ -681,3 +681,77 @@ All styles are at the end of `src/styles.css`.
 - The bar fills in about 8 seconds at 1× and 4 seconds at 2×, and the day number goes up when it is full.
 - Pausing or changing speed mid-day does not reset the bar.
 - Hover, click and keyboard focus are visible on all controls, while disabled controls do not react.
+
+# SAVE FILES
+
+## Export and import
+
+Two buttons above the footer, on both the Colony and Forge pages, let the player download the current save and load it again later. A save file contains the same JSON that is kept in `localStorage` under `dwarfhold-save`.
+
+| Button | What it does |
+| --- | --- |
+| **Export save** | Downloads the stored JSON as `dwarfhold-save-day-<day>.json`. If `localStorage` is unavailable or empty, the latest snapshot in memory is used. |
+| **Import save** | Opens a file picker, asks for confirmation, checks the file and replaces the current colony without a page reload. |
+
+A message next to the buttons reports success or the reason for a failure. It uses `role="status"`, so screen readers announce it.
+
+### Files
+
+- `src/components/SaveFileControls.tsx`: the buttons, file picker, download and status message. Rendered by `src/pages/Layout.tsx`.
+- `src/state/ColonyProvider.tsx`: `exportSave()` and `importSave(text)`, available through the colony context.
+- `src/state/colonySave.ts`: reading, writing and validating saves.
+
+### Importing a file
+
+`importSave(text)` returns an error message, or `null` on success:
+
+1. If an expedition request is running, it stops. The button is also disabled during that time. Otherwise the result could affect the newly imported colony.
+2. The text is parsed as JSON.
+3. `parseColonySave` validates the data.
+4. Only then is the state replaced: colony, pause state, speed and Chronicle. The progress of the current day starts at 0.
+
+If a check fails, the current colony does not change. `previousTasks` is updated as well, so that forge tasks of the replaced colony are not reported as finished.
+
+## Validation
+
+TypeScript types do not exist at runtime, and an imported file can contain anything. Refresh and import therefore use the same function, `parseColonySave(raw, interruptedBy)`. It replaces the checks that were previously inside `loadInitialSave` and returns a usable save or `null`.
+
+| Data | Check |
+| --- | --- |
+| Save | Supported version, pause and speed flags |
+| Resources | All known keys and no others; whole numbers of at least 0 |
+| Residents | Required fields, known species, status and job; unique IDs |
+| Forge tasks | Required fields and a valid recipe; a resident is `crafting` exactly when they have one task |
+| Chronicle | Required fields and a known tone |
+| Expeditions | Completed IDs are strings |
+| Mole-beast | Exactly one if Pebble has joined, otherwise none |
+
+These checks are stricter than those described in D5 and D6. A malformed save that was accepted before can now lead to a new game on refresh.
+
+### Interrupted expeditions
+
+The rule from D5 also applies to imported files: a dwarf who was travelling when the file was exported returns without rewards. The Chronicle names the cause, *"a refresh"* or *"an import"*.
+
+## Decisions and trade-offs
+
+| Decision | Why | Trade-off |
+| --- | --- | --- |
+| Export the `localStorage` JSON unchanged | One format for refresh and files | Players can read and edit it, so there is no cheat protection |
+| One validator for refresh and import | Both follow the same rules | A stricter rule affects both |
+| Update React state instead of writing to `localStorage` and reloading | The `pagehide` handler would overwrite the import with the old colony | The provider must reset its temporary values itself |
+| Validation without a library | No additional dependency | More code |
+| Reject other save versions | Safe and simple | Old files cannot be imported because there is no migration |
+
+## Verification
+
+`src/state/colonySave.test.ts` has 10 tests:
+
+- a save is unchanged after being written to JSON and parsed again,
+- travelling dwarves come home with a warning,
+- eight kinds of invalid data are rejected, such as another version, negative resources, duplicate residents and forge tasks that do not match a crafter.
+
+The build and all 26 tests pass. The buttons, file picker and download have no automated tests and need to be checked by hand:
+
+- Export, play for a few days and import the file: the earlier state returns.
+- Import a file that is not a save: an error appears and the colony does not change.
+- Start an expedition: **Import save** is disabled until it returns.

@@ -17,6 +17,10 @@ export interface ColonyContextValue {
   dayDurationMs: number;
   /** How much of the current day has passed, from 0 to 1. */
   getDayProgress: () => number;
+  /** The current save as JSON text. */
+  exportSave: () => string;
+  /** Replaces the colony. Returns an error message, or null on success. */
+  importSave: (text: string) => string | null;
   assignDwarf: (id: string, assignment: JobType) => void;
   craftTool: (dwarfId: string, recipe: CraftingRecipe) => void;
   toggleTool: (id: string) => void;

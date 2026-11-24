@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router";
 import { DayProgress } from "../components/DayProgress";
 import { ResourceBar } from "../components/ResourceBar";
+import { SaveFileControls } from "../components/SaveFileControls";
 import { useColony } from "../state/ColonyContext";
 
 export function Layout() {
@@ -44,6 +45,8 @@ export function Layout() {
       <DayProgress />
       <ResourceBar resources={colony.resources} hungry={colony.hungry} />
       <Outlet />
+
+      <SaveFileControls />
 
       <footer>
         <span>🔥 Forge: burning</span>

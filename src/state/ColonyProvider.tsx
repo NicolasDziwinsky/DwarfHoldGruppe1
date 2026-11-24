@@ -25,10 +25,10 @@ import { ColonyContext, type ColonyContextValue } from "./ColonyContext";
 
 import {
   COLONY_SAVE_VERSION,
-  isColonyState,
+  parseColonySave,
   readColonySave,
+  readRawColonySave,
   saveColony,
-  isRecord,
   type ColonySave,
 } from "./colonySave";
 
@@ -101,76 +101,7 @@ function loadInitialSave(): ColonySave {
     activities: initialActivities,
   };
 
-  const raw = readColonySave();
-  if (!isRecord(raw)) return fallback;
-
-  const saved = raw as Record<string, unknown>;
-
-  if (
-    saved.version !== COLONY_SAVE_VERSION ||
-    !isColonyState(saved.colony) ||
-    typeof saved.paused !== "boolean" ||
-    typeof saved.spedUp !== "boolean" ||
-    !Array.isArray(saved.activities)
-  ) {
-    return fallback;
-  }
-
-  const colony = saved.colony;
-  const interrupted = colony.dwarves.filter(
-    (dwarf) => dwarf.status === "expedition",
-  );
-
-  if (interrupted.length === 0) {
-    return {
-      version: COLONY_SAVE_VERSION,
-      savedAt:
-        typeof saved.savedAt === "string"
-          ? saved.savedAt
-          : new Date().toISOString(),
-      colony,
-      paused: saved.paused,
-      spedUp: saved.spedUp,
-      activities: saved.activities as Activity[],
-    };
-  }
-
-  // A refresh cannot prove that an in-flight expedition succeeded.
-  // Therefore, restore its dwarves locally and pay no rewards.
-  const recoveredColony: ColonyState = {
-    ...colony,
-    dwarves: colony.dwarves.map((dwarf) =>
-      dwarf.status === "expedition"
-        ? {
-            ...dwarf,
-            status: dwarf.assignment ? "working" : "idle",
-            travellingTo: undefined,
-          }
-        : dwarf,
-    ),
-  };
-
-  const recoveryMessages: Activity[] = interrupted.map((dwarf) => ({
-    id: `interrupted-expedition-${dwarf.id}-${saved.savedAt}`,
-    day: colony.day,
-    message: `${dwarf.name}'s expedition was interrupted by a refresh. The dwarf returned empty-handed.`,
-    tone: "warning",
-  }));
-
-  return {
-    version: COLONY_SAVE_VERSION,
-    savedAt:
-      typeof saved.savedAt === "string"
-        ? saved.savedAt
-        : new Date().toISOString(),
-    colony: recoveredColony,
-    paused: saved.paused,
-    spedUp: saved.spedUp,
-    activities: [
-      ...recoveryMessages,
-      ...(saved.activities as Activity[]),
-    ].slice(0, 6),
-  };
+  return parseColonySave(readColonySave(), "a refresh") ?? fallback;
 }
 
 
@@ -499,6 +430,36 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function exportSave(): string {
+    return readRawColonySave() ?? JSON.stringify(latestSave.current);
+  }
+
+  function importSave(text: string): string | null {
+    // A pending result belongs to the colony that would be replaced.
+    if (inFlight.current.size > 0) {
+      return "Wait for the expedition to return before importing.";
+    }
+
+    let raw: unknown;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      return "This file is not valid JSON.";
+    }
+
+    const save = parseColonySave(raw, "an import");
+    if (!save) return "This save file is damaged or incompatible.";
+
+    // Replaced forge tasks must not be reported as finished.
+    previousTasks.current = save.colony.craftingTasks;
+    dayProgress.current = 0;
+    setColony(save.colony);
+    setPaused(save.paused);
+    setSpeedUp(save.spedUp);
+    setActivities(save.activities);
+    return null;
+  }
+
   const value: ColonyContextValue = {
     colony,
     paused,
@@ -509,6 +470,8 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     toggleSpeedUp: () => setSpeedUp((value) => !value),
     dayDurationMs,
     getDayProgress,
+    exportSave,
+    importSave,
     assignDwarf,
     craftTool,
     toggleTool,

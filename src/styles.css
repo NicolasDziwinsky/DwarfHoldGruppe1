@@ -36,3 +36,9 @@ button:focus-visible,select:focus-visible,.main-nav a:focus-visible{outline:2px 
 .resource-bar article:not(.hungry):hover,.dwarf:hover{background:#231c14}
 .job-grid article:hover{background:#2a2218;border-color:#74552d}
 @media(prefers-reduced-motion:reduce){button,select,.main-nav a{transition:none}button:active:not(:disabled),.main-nav a:active{transform:none}}
+
+/* Save file export and import */
+.save-controls{display:flex;align-items:center;gap:10px;margin-top:15px;font:600 12px Barlow Condensed}
+.save-controls button{background:transparent;color:#d9a34f;border:1px solid #74552d;padding:7px 12px;font:inherit;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.save-controls button:hover:not(:disabled){background:#2a2117;border-color:#bb843b;color:#eadfca}
+.save-controls button:disabled{opacity:.5;cursor:not-allowed}
