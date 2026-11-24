@@ -187,10 +187,7 @@ export function completeExpedition(
   let crystalCaveResidentJoined = state.crystalCaveResidentJoined;
 
   if (!alreadyPaid) {
-    const rewards =
-      result.destination === "haunted-mansion"
-        ? { wood: 50, stone: 50 }
-        : result.rewards ?? {};
+    const rewards = result.rewards ?? {};
     Object.entries(rewards).forEach(([key, amount]) => {
       // Ignore anything that is not a known resource or a whole number >= 0
       if (key in resources && Number.isInteger(amount) && amount >= 0) {

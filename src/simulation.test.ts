@@ -197,7 +197,7 @@ describe("expeditions", () => {
       expeditionId: "exp-mansion-armed",
       destination: "haunted-mansion",
       status: "completed" as const,
-      rewards: {},
+      rewards: { wood: 50, stone: 50, food: 50 },
       message: "",
     };
 
@@ -210,7 +210,7 @@ describe("expeditions", () => {
     expect(defended.resources).toEqual({
       wood: 60,
       stone: 58,
-      food: 6,
+      food: 56,
       tools: 0,
       swords: 2,
     });
@@ -228,7 +228,7 @@ describe("expeditions", () => {
       expeditionId: "exp-mansion-unarmed",
       destination: "haunted-mansion",
       status: "completed" as const,
-      rewards: {},
+      rewards: { wood: 50, stone: 50, food: 50 },
       message: "",
     };
 
@@ -241,7 +241,7 @@ describe("expeditions", () => {
     expect(raided.resources).toEqual({
       wood: 30,
       stone: 29,
-      food: 3,
+      food: 28,
       tools: 0,
       swords: 1,
     });
@@ -253,6 +253,29 @@ describe("expeditions", () => {
       mansionResult,
     );
     expect(repeated.resources).toEqual(raided.resources);
+  });
+
+  it("uses API-defined Mansion rewards before calculating the raid", () => {
+    const mansionResult = {
+      expeditionId: "exp-mansion-rations",
+      destination: "haunted-mansion",
+      status: "completed" as const,
+      rewards: { wood: 20, stone: 14, food: 50 },
+      message: "",
+    };
+
+    const raided = completeExpedition(
+      startExpedition(home, "d1", "haunted-mansion"),
+      "d1",
+      mansionResult,
+    );
+
+    expect(raided.resources).toMatchObject({
+      wood: 10,
+      stone: 7,
+      food: 30,
+      swords: 0,
+    });
   });
 
   it("does not make the sword count negative when an unarmed colony is attacked", () => {
@@ -274,7 +297,7 @@ describe("expeditions", () => {
     );
 
     expect(attacked.resources.swords).toBe(0);
-    expect(attacked.resources).toMatchObject({ wood: 25, stone: 25, food: 0 });
+    expect(attacked.resources).toMatchObject({ wood: 0, stone: 0, food: 0 });
     expect(hauntedMansionAttackMessage(0)).toContain("already empty");
   });
 });
